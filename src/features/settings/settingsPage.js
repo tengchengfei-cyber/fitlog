@@ -1284,27 +1284,24 @@ export function settingsPage() {
       sectionTitle({ title: '训练目标', hint: '可以随时调整' }),
       buildGoalSection(),
 
-      sectionTitle({ title: '账户与云同步（可选）', hint: 'GitHub / 邮箱登录；不配置则完全本地' }),
+      sectionTitle({ title: '账户与云同步（可选）', hint: 'GitHub / 邮箱登录' }),
       buildCloudSection(),
 
-      sectionTitle({ title: 'AI 分析（自带密钥）', hint: '用自己的模型生成更自然的复盘文案' }),
-      buildAiSection(),
-
-      sectionTitle({ title: '知识库与动作扩展', hint: '内置资料 + 你导入的权威文件' }),
-      buildKnowledgeSection(),
-      errorsBlock,
-
-      sectionTitle({ title: '媒体展示偏好' }),
-      buildMediaSection(),
-
-      sectionTitle({ title: '数据与隐私' }),
-      buildDataSection(),
-
-      sectionTitle({ title: '安装与离线' }),
-      buildInstallSection(),
-
-      sectionTitle({ title: '关于' }),
-      buildAboutSection(),
+      disclosure({
+        summary: '更多设置：AI 分析（自带密钥）、知识库、媒体、数据、安装与关于',
+        iconName: 'settings',
+        children: el(
+          'div',
+          { className: 'stack' },
+          buildAiSection(),
+          errorsBlock,
+          buildKnowledgeSection(),
+          buildMediaSection(),
+          buildDataSection(),
+          buildInstallSection(),
+          buildAboutSection()
+        )
+      }),
 
       el('p', { className: 'muted text-xs text-center', textContent: '练迹 FitLog · 个人使用原型 · 不构成医疗建议' })
     ]

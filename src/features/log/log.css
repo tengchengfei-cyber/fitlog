@@ -103,12 +103,12 @@
   color: var(--text);
   font-size: var(--text-sm);
   background: var(--accent-soft);
-  border: 1px solid rgba(214, 255, 75, 0.35);
+  border: 1px solid rgba(47, 107, 79, 0.35);
   border-radius: var(--radius-pill);
 }
 
 .log-selected-chip:active {
-  background: rgba(214, 255, 75, 0.2);
+  background: rgba(47, 107, 79, 0.2);
 }
 
 /* ---------- 动作选择器 ---------- */
@@ -201,8 +201,8 @@
 }
 
 .log-result.is-selected {
-  border-color: rgba(214, 255, 75, 0.5);
-  background: linear-gradient(150deg, rgba(214, 255, 75, 0.1), rgba(21, 29, 26, 0.92) 62%), var(--surface);
+  border-color: rgba(47, 107, 79, 0.5);
+  background: linear-gradient(150deg, rgba(47, 107, 79, 0.1), rgba(255, 255, 255, 0.92) 62%), var(--surface);
 }
 
 .log-result.is-locked {
@@ -381,6 +381,49 @@
   align-items: flex-start;
   gap: var(--space-2);
   min-width: 0;
+  cursor: pointer;
+}
+
+.log-exercise__collapsed-summary {
+  display: none;
+  margin-top: -6px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.log-exercise.is-collapsed {
+  gap: var(--space-2);
+  padding: 12px 14px;
+}
+
+.log-exercise.is-collapsed .log-exercise__collapsed-summary {
+  display: block;
+}
+
+.log-exercise.is-collapsed .log-plan,
+.log-exercise.is-collapsed .log-sets,
+.log-exercise.is-collapsed .log-exercise__footer,
+.log-exercise.is-collapsed .log-exercise__note {
+  display: none;
+}
+
+.log-exercise__weight-note {
+  margin-top: -6px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.log-exercise__collapse {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.log-exercise__collapse.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.log-set__grid--single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .log-exercise__title-wrap {
@@ -522,6 +565,36 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  cursor: pointer;
+}
+
+.log-set__summary {
+  display: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.log-set.is-collapsed {
+  gap: 4px;
+  padding: 8px 10px;
+}
+
+.log-set.is-collapsed .log-set__summary {
+  display: block;
+}
+
+.log-set.is-collapsed .log-set__grid,
+.log-set.is-collapsed .log-set__note {
+  display: none;
+}
+
+.log-set__collapse {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.log-set__collapse.is-collapsed {
+  transform: rotate(-90deg);
 }
 
 .log-set__index {
@@ -557,7 +630,7 @@
 .log-toggle.is-on {
   color: var(--accent);
   background: var(--accent-soft);
-  border-color: rgba(214, 255, 75, 0.45);
+  border-color: rgba(47, 107, 79, 0.45);
 }
 
 .log-set__grid {
@@ -790,7 +863,7 @@
 }
 
 .log-check-option.is-selected {
-  border-color: rgba(214, 255, 75, 0.55);
+  border-color: rgba(47, 107, 79, 0.55);
   background: var(--accent-soft);
 }
 
@@ -807,7 +880,7 @@
 }
 
 .log-check-option.is-danger.is-selected {
-  border-color: rgba(255, 125, 110, 0.55);
+  border-color: rgba(185, 74, 60, 0.55);
   background: var(--danger-soft);
 }
 

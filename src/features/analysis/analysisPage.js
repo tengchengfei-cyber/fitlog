@@ -829,10 +829,18 @@ function renderSnapshot(ctx, session, snapshot) {
     children: [
       safetySection(narrative),
       factsSection(facts, session, narrative),
-      distributionSection(facts),
       suggestionsSection(facts, narrative),
-      stretchesSection(facts, session),
-      evidenceSection(facts, narrative, snapshot)
+      disclosure({
+        summary: '更多细节：训练分布、拉伸与证据局限',
+        iconName: 'chart',
+        children: el(
+          'div',
+          { className: 'stack' },
+          distributionSection(facts),
+          stretchesSection(facts, session),
+          evidenceSection(facts, narrative, snapshot)
+        )
+      })
     ]
   });
   rootRef = root;

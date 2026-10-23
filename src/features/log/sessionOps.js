@@ -616,3 +616,16 @@ export function cloneAsEditableSession(session) {
 
 /** 训练动作备注长度限制（统一 UI 与数据）。 */
 export const NOTE_MAX_LENGTH = 500;
+
+/**
+ * 是否需要记录重量（kg）。
+ * 产品决策（2026-10-23）：固定器械/绳索/史密斯/自重等受滑轮组与力臂影响，
+ * 实际负荷无法和杠铃/哑铃直接比较，因此只有「杠铃 / 哑铃」动作显示重量输入，
+ * 其余动作只记录组数 × 次数（weightKg 保持 null，不猜重量）。
+ */
+export const WEIGHT_TRACKED_EQUIPMENT_LABELS = new Set(['杠铃', '哑铃']);
+
+export function tracksWeightKg(sessionExercise) {
+  const label = sessionExercise && sessionExercise.equipmentLabel ? sessionExercise.equipmentLabel : '';
+  return WEIGHT_TRACKED_EQUIPMENT_LABELS.has(String(label));
+}

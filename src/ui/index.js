@@ -238,6 +238,126 @@ export function numberStepper({
   return wrap;
 }
 
+/**
+ * 滚轮/转盘式数字选择器：上下滑动选择，适合单手快速调重量/次数/RPE/休息。
+ * onChange 收到 number | null。
+ */
+export function wheelNumberPicker({
+  value = null,
+  min = 0,
+  max = 100,
+  step = 1,
+  allowEmpty = false,
+  onChange,
+  ariaLabel = '数值',
+  itemHeight = 34
+}) {
+  const items = [];
+  if (allowEmpty) items.push(null);
+  const steps = Math.max(0, Math.round((Number(max) - Number(min)) / Number(step)));
+  for (let index = 0; index <= steps; index += 1) {
+    const raw = Number(min) + index * Number(step);
+    items.push(Number(raw.toFixed(4)));
+  }
+  const format = (item) => {
+    if (item === null) return '—';
+    return Number.isInteger(item) ? String(item) : String(item);
+  };
+  let currentIndex = 0;
+  const exactIndex = items.findIndex((item) => item === value);
+  if (exactIndex >= 0) currentIndex = exactIndex;
+  else if (value === null && allowEmpty) currentIndex = 0;
+  else {
+    // 最近值
+    let best = Infinity;
+    items.forEach((item, index) => {
+      if (item === null) return;
+      const distance = Math.abs(item - Number(value));
+      if (distance < best) {
+        best = distance;
+        currentIndex = index;
+      }
+    });
+  }
+
+  const itemEls = items.map((item, index) =>
+    el(
+      'button',
+      {
+        className: 'wheel__item',
+        type: 'button',
+        tabIndex: -1,
+        'aria-label': `${ariaLabel} ${format(item)}`,
+        onClick: () => {
+          selectIndex(index, true);
+          if (onChange) onChange(items[index]);
+        }
+      },
+      format(item)
+    )
+  );
+  const list = el('div', { className: 'wheel__list' }, el('div', { className: 'wheel__pad' }), ...itemEls, el('div', { className: 'wheel__pad' }));
+  const scroller = el('div', {
+    className: 'wheel',
+    role: 'listbox',
+    tabIndex: 0,
+    'aria-label': ariaLabel,
+    onKeydown: (event) => {
+      if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(event.key)) return;
+      event.preventDefault();
+      const delta = event.key === 'ArrowUp' || event.key === 'PageUp' ? -1 : 1;
+      selectIndex(currentIndex + delta, true);
+      if (onChange) onChange(items[currentIndex]);
+    }
+  });
+  scroller.appendChild(list);
+
+  let suppressChange = true;
+  let scrollTimer = null;
+  let lastIndex = currentIndex;
+
+  function setActive(index) {
+    itemEls.forEach((item, itemIndex) => item.classList.toggle('is-active', itemIndex === index));
+    scroller.setAttribute('aria-activedescendant', '');
+    scroller.setAttribute('aria-valuetext', format(items[index]));
+  }
+
+  function selectIndex(index, scroll) {
+    const clamped = Math.max(0, Math.min(items.length - 1, index));
+    currentIndex = clamped;
+    setActive(clamped);
+    if (scroll) scroller.scrollTop = clamped * itemHeight;
+  }
+
+  scroller.addEventListener(
+    'scroll',
+    () => {
+      if (suppressChange) return;
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        const index = Math.max(0, Math.min(items.length - 1, Math.round(scroller.scrollTop / itemHeight)));
+        if (index !== lastIndex) {
+          lastIndex = index;
+          currentIndex = index;
+          setActive(index);
+          if (onChange) onChange(items[index]);
+        }
+      }, 90);
+    },
+    { passive: true }
+  );
+
+  // 挂载后再定位，避免隐藏/未布局时 scrollTop 无效。
+  setTimeout(() => {
+    scroller.scrollTop = currentIndex * itemHeight;
+    lastIndex = currentIndex;
+    setActive(currentIndex);
+    suppressChange = false;
+  }, 0);
+
+  return el('div', { className: 'wheel-wrap' }, scroller);
+}
+
 export function segmentedControl({ options, value, onChange, name = 'segment' }) {
   const wrap = el('div', { className: 'segmented', role: 'group', 'aria-label': name });
   for (const option of options) {

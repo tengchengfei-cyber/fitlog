@@ -120,7 +120,7 @@
 }
 
 .exercise-card--highlight {
-  border-color: rgba(214, 255, 75, 0.35);
+  border-color: rgba(47, 107, 79, 0.35);
 }
 
 .exercise-card__head {
@@ -388,14 +388,14 @@
   overflow: hidden;
   background-color: var(--bg-elevated);
   background-image:
-    radial-gradient(120% 90% at 50% 8%, rgba(214, 255, 75, 0.1), transparent 62%),
+    radial-gradient(120% 90% at 50% 8%, rgba(47, 107, 79, 0.1), transparent 62%),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 30px),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 30px);
 }
 
 .media-canvas--video {
   background-image:
-    radial-gradient(120% 90% at 50% 8%, rgba(124, 196, 255, 0.12), transparent 62%),
+    radial-gradient(120% 90% at 50% 8%, rgba(60, 111, 158, 0.12), transparent 62%),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 30px),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 30px);
 }
@@ -424,7 +424,7 @@
 .media-figure__track {
   position: absolute;
   inset: 6px;
-  border: 2px dashed rgba(214, 255, 75, 0.32);
+  border: 2px dashed rgba(47, 107, 79, 0.32);
   border-radius: 50% / 42%;
   transform: rotate(-12deg);
 }
@@ -437,8 +437,8 @@
   height: 76px;
   place-items: center;
   color: var(--accent);
-  background: radial-gradient(circle at 35% 25%, rgba(214, 255, 75, 0.22), rgba(21, 29, 26, 0.92) 70%);
-  border: 1px solid rgba(214, 255, 75, 0.32);
+  background: radial-gradient(circle at 35% 25%, rgba(47, 107, 79, 0.22), rgba(255, 255, 255, 0.92) 70%);
+  border: 1px solid rgba(47, 107, 79, 0.32);
   border-radius: 50%;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
 }
@@ -447,8 +447,8 @@
   width: 84px;
   height: 84px;
   color: var(--blue);
-  background: radial-gradient(circle at 35% 25%, rgba(124, 196, 255, 0.2), rgba(21, 29, 26, 0.92) 70%);
-  border-color: rgba(124, 196, 255, 0.32);
+  background: radial-gradient(circle at 35% 25%, rgba(60, 111, 158, 0.2), rgba(255, 255, 255, 0.92) 70%);
+  border-color: rgba(60, 111, 158, 0.32);
 }
 
 .media-caption {
@@ -651,7 +651,7 @@
 .muscle-tag--direct {
   color: var(--accent);
   background: var(--accent-soft);
-  border-color: rgba(214, 255, 75, 0.35);
+  border-color: rgba(47, 107, 79, 0.35);
 }
 
 .muscle-tag--indirect {

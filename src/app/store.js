@@ -7,7 +7,7 @@
 import { loadState, saveState, clearState, clearAllAppData, SCHEMA_VERSION } from './storage.js';
 import { newId } from './format.js';
 
-export const APP_VERSION = 'prototype-0.3.0';
+export const APP_VERSION = 'prototype-0.4.0';
 export const SYNC_STATUS = {
   LOCAL_ONLY: 'local-only',
   PENDING: 'pending',

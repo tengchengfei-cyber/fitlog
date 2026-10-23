@@ -30,6 +30,7 @@ import {
   statTile,
   textarea,
   numberStepper,
+  wheelNumberPicker,
   emptyState,
   sectionTitle
 } from '../../ui/index.js';
@@ -60,7 +61,8 @@ import {
   removeExercise,
   addExerciseToSession,
   exerciseSetCounts,
-  prepareCompletion
+  prepareCompletion,
+  tracksWeightKg
 } from './sessionOps.js';
 import {
   ANALYSIS_UNAVAILABLE_MESSAGE,
@@ -156,6 +158,14 @@ export function activeSessionPage(ctx = {}) {
   // 草稿直接操作 store 中的对象（saveDraft 按 id 更新）；已完成训练先深拷贝，
   // 只有点「保存修改」才 updateSession，避免未保存的修改写进历史。
   const session = editMode ? cloneAsEditableSession(requested) : requested;
+  // 已记录动作默认收起，只展开最近一个；点击头部可展开/收起。
+  const collapsedExerciseIds = new Set((session.exercises || []).slice(0, -1).map((item) => item.id));
+  // 组行默认只展开最新一组，历史组显示摘要，点击可展开。
+  const expandedSetIds = new Set();
+  for (const item of session.exercises || []) {
+    const lastSet = item.sets && item.sets[item.sets.length - 1];
+    if (lastSet) expandedSetIds.add(lastSet.id);
+  }
 
   const root = screen({
     title: editMode ? '编辑训练记录' : '记录训练',
@@ -232,15 +242,16 @@ export function activeSessionPage(ctx = {}) {
   // ---------- 组间休息倒计时 ----------
   const restTimeEl = el('span', { className: 'rest-timer__time', textContent: '01:30' });
   const restHintEl = el('span', { className: 'rest-timer__hint', textContent: '组间休息' });
-  const restBar = el(
+  const restStartButton = button({
+    label: '组间休息',
+    variant: 'secondary',
+    iconName: 'timer',
+    full: true,
+    onClick: () => startRestTimer(defaultRestSeconds())
+  });
+  const restActive = el(
     'div',
-    {
-      className: 'rest-timer',
-      hidden: true,
-      role: 'status',
-      'aria-live': 'polite',
-      'aria-label': '组间休息倒计时'
-    },
+    { className: 'rest-timer__active' },
     el(
       'div',
       { className: 'rest-timer__main' },
@@ -272,12 +283,33 @@ export function activeSessionPage(ctx = {}) {
       })
     )
   );
-  root.appendChild(restBar);
+  const restBar = el(
+    'div',
+    {
+      className: 'rest-timer is-idle',
+      role: 'region',
+      'aria-label': '组间休息'
+    },
+    restStartButton,
+    restActive
+  );
+  if (editMode) restBar.hidden = true;
+  else root.appendChild(restBar);
 
   let restTimer = null;
   let restInterval = null;
   let restHideTimeout = null;
   let restFinishedNotified = false;
+
+  function defaultRestSeconds() {
+    let last = null;
+    for (const sessionExercise of session.exercises || []) {
+      for (const set of sessionExercise.sets || []) {
+        if (Number(set.restSec) > 0) last = Number(set.restSec);
+      }
+    }
+    return last || 90;
+  }
 
   function ensureRestTicker() {
     if (restInterval) return;
@@ -295,8 +327,8 @@ export function activeSessionPage(ctx = {}) {
     }
   }
 
-  function hideRestBar() {
-    restBar.hidden = true;
+  function setRestIdle() {
+    restBar.classList.add('is-idle');
     restBar.classList.remove('is-done');
   }
 
@@ -305,7 +337,8 @@ export function activeSessionPage(ctx = {}) {
     restTimer = null;
     restFinishedNotified = false;
     clearRestTimer();
-    hideRestBar();
+    restHintEl.textContent = '组间休息';
+    setRestIdle();
   }
 
   function startRestTimer(seconds = 90) {
@@ -314,7 +347,7 @@ export function activeSessionPage(ctx = {}) {
     restTimer = createRestTimer({ durationSec: seconds });
     saveRestTimer(restTimer);
     restFinishedNotified = false;
-    restBar.hidden = false;
+    restBar.classList.remove('is-idle');
     restBar.classList.remove('is-done');
     restHintEl.textContent = '组间休息';
     renderRestTimer();
@@ -323,12 +356,12 @@ export function activeSessionPage(ctx = {}) {
 
   function renderRestTimer() {
     if (!restTimer) {
-      hideRestBar();
+      setRestIdle();
       return;
     }
     const left = remainingSeconds(restTimer);
     restTimeEl.textContent = formatClock(left);
-    restBar.hidden = false;
+    restBar.classList.remove('is-idle');
     if (left > 0) {
       restBar.classList.remove('is-done');
       return;
@@ -347,8 +380,10 @@ export function activeSessionPage(ctx = {}) {
       }
       toast('组间休息结束，可以开始下一组', { tone: 'success', duration: 3200 });
       restHideTimeout = setTimeout(() => {
-        hideRestBar();
         restTimer = null;
+        restHintEl.textContent = '组间休息';
+        restTimeEl.textContent = '00:00';
+        setRestIdle();
       }, 7000);
     }
   }
@@ -356,9 +391,10 @@ export function activeSessionPage(ctx = {}) {
   const savedRestTimer = editMode ? null : loadRestTimer();
   if (savedRestTimer) {
     restTimer = savedRestTimer;
-    restBar.hidden = false;
     renderRestTimer();
     ensureRestTicker();
+  } else {
+    setRestIdle();
   }
 
   // 离开页面时停止 ticker（倒计时状态已持久化，下次进入可恢复）
@@ -422,8 +458,19 @@ export function activeSessionPage(ctx = {}) {
     );
   }
 
+  function setSummaryText(set, weightTracked) {
+    const parts = [];
+    if (weightTracked && Number(set.weightKg) > 0) parts.push(`${set.weightKg} kg × ${set.reps ?? '—'}`);
+    else parts.push(`${set.reps ?? '—'} 次`);
+    if (set.rpe) parts.push(`RPE ${set.rpe}`);
+    if (set.restSec) parts.push(`休息 ${set.restSec}s`);
+    return parts.join(' · ');
+  }
+
   function renderSetRow(sessionExercise, set, index) {
     const number = index + 1;
+    const weightTracked = tracksWeightKg(sessionExercise);
+    const isCollapsed = !expandedSetIds.has(set.id);
     const noteArea = textarea({
       value: set.note || '',
       placeholder: '本组备注（可选）：动作感受、疼痛、调整…',
@@ -441,9 +488,9 @@ export function activeSessionPage(ctx = {}) {
       if (!noteWrap.hidden) noteArea.focus();
     });
 
-    return el(
+    const setEl = el(
       'div',
-      { className: 'log-set', dataset: { setId: set.id } },
+      { className: `log-set ${isCollapsed ? 'is-collapsed' : ''}`.trim(), dataset: { setId: set.id } },
       el(
         'div',
         { className: 'log-set__head' },
@@ -467,9 +514,16 @@ export function activeSessionPage(ctx = {}) {
         el(
           'div',
           { className: 'log-set__actions' },
+          iconAction('chevron-down', isCollapsed ? '展开这一组' : '收起这一组', () => toggleSetCollapsed(), {
+            className: `log-set__collapse ${isCollapsed ? 'is-collapsed' : ''}`.trim()
+          }),
           noteButton,
           iconAction('copy', '复制本组', () => {
-            duplicateSet(sessionExercise, set.id);
+            const copy = duplicateSet(sessionExercise, set.id);
+            if (copy) {
+              expandedSetIds.clear();
+              expandedSetIds.add(copy.id);
+            }
             persist({ structural: true });
             toast('已复制这一组', { tone: 'success', duration: 1400 });
           }),
@@ -479,30 +533,35 @@ export function activeSessionPage(ctx = {}) {
           })
         )
       ),
+      el('p', { className: 'log-set__summary', textContent: setSummaryText(set, weightTracked) }),
       el(
         'div',
-        { className: 'log-set__grid' },
-        setField(
-          '重量 (kg)',
-          numberStepper({
-            value: set.weightKg,
-            min: 0,
-            max: 500,
-            step: 2.5,
-            ariaLabel: `第 ${number} 组重量（kg）`,
-            onChange: (value) => {
-              updateSet(sessionExercise, set.id, { weightKg: value });
-              persist();
-            }
-          })
-        ),
+        { className: `log-set__grid ${weightTracked ? '' : 'log-set__grid--single'}`.trim() },
+        weightTracked
+          ? setField(
+              '重量 (kg)',
+              wheelNumberPicker({
+                value: set.weightKg,
+                min: 0,
+                max: 300,
+                step: 2.5,
+                allowEmpty: true,
+                ariaLabel: `第 ${number} 组重量（kg）`,
+                onChange: (value) => {
+                  updateSet(sessionExercise, set.id, { weightKg: value });
+                  persist();
+                }
+              })
+            )
+          : null,
         setField(
           '次数',
-          numberStepper({
+          wheelNumberPicker({
             value: set.reps,
             min: 0,
-            max: 200,
+            max: 50,
             step: 1,
+            allowEmpty: true,
             ariaLabel: `第 ${number} 组次数`,
             onChange: (value) => {
               updateSet(sessionExercise, set.id, { reps: value });
@@ -516,11 +575,12 @@ export function activeSessionPage(ctx = {}) {
         { className: 'log-set__grid' },
         setField(
           'RPE（可选）',
-          numberStepper({
+          wheelNumberPicker({
             value: set.rpe,
             min: 1,
             max: 10,
             step: 0.5,
+            allowEmpty: true,
             ariaLabel: `第 ${number} 组 RPE`,
             onChange: (value) => {
               updateSet(sessionExercise, set.id, { rpe: value });
@@ -530,11 +590,12 @@ export function activeSessionPage(ctx = {}) {
         ),
         setField(
           '休息（秒，可选）',
-          numberStepper({
+          wheelNumberPicker({
             value: set.restSec,
             min: 0,
             max: 600,
             step: 15,
+            allowEmpty: true,
             ariaLabel: `第 ${number} 组休息秒数`,
             onChange: (value) => {
               updateSet(sessionExercise, set.id, { restSec: value });
@@ -545,12 +606,54 @@ export function activeSessionPage(ctx = {}) {
       ),
       noteWrap
     );
+
+    function toggleSetCollapsed() {
+      if (expandedSetIds.has(set.id)) expandedSetIds.delete(set.id);
+      else expandedSetIds.add(set.id);
+      const collapsed = !expandedSetIds.has(set.id);
+      setEl.classList.toggle('is-collapsed', collapsed);
+      const collapseButton = setEl.querySelector('.log-set__collapse');
+      if (collapseButton) {
+        collapseButton.classList.toggle('is-collapsed', collapsed);
+        collapseButton.setAttribute('aria-label', collapsed ? '展开这一组' : '收起这一组');
+      }
+    }
+
+    const setHead = setEl.querySelector('.log-set__head');
+    if (setHead) {
+      setHead.addEventListener('click', (event) => {
+        if (event.target.closest('button')) return;
+        toggleSetCollapsed();
+      });
+    }
+    return setEl;
   }
 
   // ---------- 动作卡 ----------
 
-  function confirmRemoveExercise(sessionExercise) {
+  function exerciseCollapseSummary(sessionExercise) {
     const counts = exerciseSetCounts(sessionExercise);
+    const sets = sessionExercise.sets || [];
+    if (!counts.completedSets) return '尚未记录';
+    if (tracksWeightKg(sessionExercise)) {
+      const weighted = sets.filter((set) => Number(set.weightKg) > 0 && Number(set.reps) > 0);
+      if (weighted.length) {
+        const best = weighted.reduce((top, set) => (Number(set.weightKg) > Number(top.weightKg) ? set : top), weighted[0]);
+        return `${counts.completedSets} 组 · 最重 ${best.weightKg} kg`;
+      }
+    }
+    const reps = sets.reduce((sum, set) => sum + (Number(set.reps) || 0), 0);
+    return `${counts.completedSets} 组${reps ? ` · ${reps} 次` : ''}`;
+  }
+
+  function focusExercise(sessionExerciseId) {
+    for (const item of session.exercises) {
+      if (item.id === sessionExerciseId) collapsedExerciseIds.delete(item.id);
+      else collapsedExerciseIds.add(item.id);
+    }
+  }
+
+  function confirmRemoveExercise(sessionExercise) {    const counts = exerciseSetCounts(sessionExercise);
     confirmDialog({
       title: '删除这个动作？',
       message: `将删除「${sessionExercise.exerciseName}」及其已记录的 ${counts.completedSets} 组数据，此操作不可撤销。`,
@@ -569,6 +672,8 @@ export function activeSessionPage(ctx = {}) {
     const counts = exerciseSetCounts(sessionExercise);
     const isFirst = index === 0;
     const isLast = index === session.exercises.length - 1;
+    const isCollapsed = collapsedExerciseIds.has(sessionExercise.id);
+    const weightTracked = tracksWeightKg(sessionExercise);
 
     const plannedTag = el('span', {
       className: 'log-plan__tag',
@@ -625,9 +730,12 @@ export function activeSessionPage(ctx = {}) {
       ]
     });
 
-    return el(
+    const cardEl = el(
       'div',
-      { className: 'card card--padded log-exercise', dataset: { sessionExerciseId: sessionExercise.id } },
+      {
+        className: `card card--padded log-exercise ${isCollapsed ? 'is-collapsed' : ''}`.trim(),
+        dataset: { sessionExerciseId: sessionExercise.id }
+      },
       el(
         'div',
         { className: 'log-exercise__head' },
@@ -650,6 +758,12 @@ export function activeSessionPage(ctx = {}) {
           { className: 'log-exercise__actions' },
           iconAction(
             'chevron-down',
+            isCollapsed ? '展开动作' : '收起动作',
+            () => toggleCollapsedExercise(),
+            { className: `log-exercise__collapse ${isCollapsed ? 'is-collapsed' : ''}`.trim() }
+          ),
+          iconAction(
+            'chevron-down',
             '上移',
             () => {
               if (moveExercise(session, sessionExercise.id, -1)) persist({ structural: true });
@@ -667,6 +781,17 @@ export function activeSessionPage(ctx = {}) {
           iconAction('trash', '删除动作', () => confirmRemoveExercise(sessionExercise))
         )
       ),
+      el(
+        'p',
+        { className: 'log-exercise__collapsed-summary' },
+        `${exerciseCollapseSummary(sessionExercise)} · ${counts.plannedSets === null ? '计划未设定' : `计划 ${counts.plannedSets} 组`}`
+      ),
+      !weightTracked
+        ? el('p', {
+            className: 'log-exercise__weight-note',
+            textContent: '固定器械/绳索的重量受滑轮与力臂影响，本动作只记录组数 × 次数，不记录 kg。'
+          })
+        : null,
       el(
         'div',
         { className: 'log-plan' },
@@ -689,10 +814,12 @@ export function activeSessionPage(ctx = {}) {
           iconName: 'plus',
           onClick: () => {
             const added = addSet(sessionExercise, {});
+            if (added) {
+              expandedSetIds.clear();
+              expandedSetIds.add(added.id);
+            }
+            focusExercise(sessionExercise.id);
             persist({ structural: true });
-            const previous = sessionExercise.sets[sessionExercise.sets.length - 2];
-            const restSec = added?.restSec ?? previous?.restSec ?? 90;
-            if (restSec > 0) startRestTimer(restSec);
           }
         }),
         button({
@@ -704,14 +831,36 @@ export function activeSessionPage(ctx = {}) {
           onClick: () => {
             const copy = duplicatePreviousSet(sessionExercise);
             if (!copy) return;
+            expandedSetIds.clear();
+            expandedSetIds.add(copy.id);
+            focusExercise(sessionExercise.id);
             persist({ structural: true });
-            const restSec = copy.restSec ?? 90;
-            if (restSec > 0) startRestTimer(restSec);
           }
         })
       ),
       noteField
     );
+
+    function toggleCollapsedExercise() {
+      if (collapsedExerciseIds.has(sessionExercise.id)) collapsedExerciseIds.delete(sessionExercise.id);
+      else collapsedExerciseIds.add(sessionExercise.id);
+      const collapsed = collapsedExerciseIds.has(sessionExercise.id);
+      cardEl.classList.toggle('is-collapsed', collapsed);
+      const collapseButton = cardEl.querySelector('.log-exercise__collapse');
+      if (collapseButton) {
+        collapseButton.classList.toggle('is-collapsed', collapsed);
+        collapseButton.setAttribute('aria-label', collapsed ? '展开动作' : '收起动作');
+      }
+    }
+
+    const head = cardEl.querySelector('.log-exercise__head');
+    if (head) {
+      head.addEventListener('click', (event) => {
+        if (event.target.closest('button')) return;
+        toggleCollapsedExercise();
+      });
+    }
+    return cardEl;
   }
 
   function renderExerciseList() {
@@ -768,6 +917,8 @@ export function activeSessionPage(ctx = {}) {
               toast('请先选择要加入的动作', { tone: 'danger' });
               return;
             }
+            const lastAdded = session.exercises[session.exercises.length - 1];
+            if (lastAdded) focusExercise(lastAdded.id);
             persist({ structural: true });
             toast(`已加入 ${added} 个动作`, { tone: 'success' });
             handle.close();
@@ -853,6 +1004,84 @@ export function activeSessionPage(ctx = {}) {
       );
     }
     return block;
+  }
+
+  function showCompletionResult(completedSession, snapshot) {
+    const facts = (snapshot && snapshot.facts) || {};
+    const narrative = (snapshot && snapshot.narrative) || {};
+    const stats = sessionStats(completedSession);
+    const volume = sessionVolumeMeta(completedSession);
+    const suggestions = Array.isArray(narrative.suggestions) ? narrative.suggestions.slice(0, 2) : [];
+    const safetyIntercepted = Boolean(facts.flags && facts.flags.safetyIntercepted);
+    let left = false;
+
+    function leave(route) {
+      left = true;
+      sheetHandle.close();
+      navigate(route);
+    }
+
+    const sheetHandle = sheet({
+      title: safetyIntercepted ? '训练已保存 · 请先关注身体信号' : '训练完成 · 本次分析',
+      className: 'completion-sheet',
+      onClose: () => {
+        if (!left) navigate('/history');
+      },
+      children: [
+        safetyIntercepted
+          ? callout({
+              tone: 'danger',
+              title: '本次记录包含需要谨慎对待的信号',
+              children: ['请停止常规训练并优先处理身体情况；如症状明显或加重，请寻求专业医疗意见。详细安全提示见完整分析。']
+            })
+          : null,
+        el('p', { className: 'completion-summary', textContent: narrative.summary || '训练已保存，正在整理本次记录。' }),
+        el(
+          'div',
+          { className: 'completion-stats' },
+          statTile({ label: '动作', value: String(stats.exerciseCount), hint: '个' }),
+          statTile({ label: '正式组', value: String(stats.completedSetCount), hint: '组' }),
+          statTile({ label: volume.label, value: volume.valueText, hint: volume.hint || '' })
+        ),
+        suggestions.length
+          ? el(
+              'div',
+              { className: 'completion-suggestions' },
+              el('h3', { className: 'completion-subtitle', textContent: '接下来可以注意' }),
+              ...suggestions.map((suggestion) =>
+                el(
+                  'div',
+                  { className: 'completion-suggestion' },
+                  el('strong', { textContent: suggestion.title || '建议' }),
+                  el('p', { textContent: suggestion.adjustment || suggestion.why || '' })
+                )
+              )
+            )
+          : null,
+        el('p', {
+          className: 'muted text-xs',
+          textContent: safetyIntercepted
+            ? '完整分析包含安全提示、记录事实与依据；请优先查看安全部分。'
+            : '这是精简小结；完整分析（训练分布、依据、拉伸与局限）可在下方打开。'
+        })
+      ],
+      footer: el(
+        'div',
+        { className: 'log-sheet-actions' },
+        button({
+          label: '查看完整分析',
+          variant: 'secondary',
+          iconName: 'chart',
+          onClick: () => leave(`/analysis/${completedSession.id}`)
+        }),
+        button({
+          label: '返回首页',
+          variant: 'primary',
+          iconName: 'check',
+          onClick: () => leave('/')
+        })
+      )
+    });
   }
 
   function openFinishSheet() {
@@ -991,16 +1220,17 @@ export function activeSessionPage(ctx = {}) {
       completeSession(session);
       handle.close();
       let analysisOk = false;
+      let completedSnapshot = null;
       const aiNotice = toast('训练已保存，正在生成分析…（若已配置模型，可能需要几秒）', { duration: 5000 });
       try {
-        await generateAnalysisSnapshot(session);
+        completedSnapshot = await generateAnalysisSnapshot(session);
         analysisOk = true;
       } catch (err) {
         console.error('[log] 分析快照生成失败（训练已保存）', err);
       }
       if (analysisOk) {
-        toast('训练已完成，正在打开分析', { tone: 'success' });
-        navigate(`/analysis/${session.id}`);
+        toast('训练已完成，分析已生成', { tone: 'success' });
+        showCompletionResult(session, completedSnapshot);
       } else {
         toast(ANALYSIS_UNAVAILABLE_MESSAGE, { tone: 'danger', duration: 3200 });
         navigate('/history');

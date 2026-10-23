@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="练迹 FitLog 图标">
+  <rect width="512" height="512" rx="112" fill="#d6ff4b"/>
+  <g fill="#10160b">
+    <rect x="138" y="236" width="236" height="40" rx="20"/>
+    <rect x="92" y="178" width="44" height="156" rx="16"/>
+    <rect x="376" y="178" width="44" height="156" rx="16"/>
+    <rect x="156" y="204" width="30" height="104" rx="13"/>
+    <rect x="326" y="204" width="30" height="104" rx="13"/>
+    <circle cx="452" cy="452" r="18"/>
+  </g>
+</svg>

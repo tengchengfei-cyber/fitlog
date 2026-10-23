@@ -1,0 +1,95 @@
+/**
+ * 设计 token（深色运动风格）。所有颜色/间距/圆角/字号必须优先使用变量。
+ */
+:root {
+  color-scheme: dark;
+
+  /* 底色与表面 */
+  --bg: #0a0e0d;
+  --bg-elevated: #101614;
+  --surface: #151d1a;
+  --surface-2: #1b2521;
+  --surface-3: #22312b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* 文字 */
+  --text: #eef4f0;
+  --text-secondary: #b9c7c0;
+  --text-muted: #8c9c94;
+  --text-inverse: #0a0e0d;
+
+  /* 品牌与语义色 */
+  --accent: #d6ff4b;
+  --accent-strong: #e4ff85;
+  --accent-soft: rgba(214, 255, 75, 0.12);
+  --accent-contrast: #10160b;
+  --teal: #5ce3c4;
+  --teal-soft: rgba(92, 227, 196, 0.12);
+  --blue: #7cc4ff;
+  --blue-soft: rgba(124, 196, 255, 0.12);
+  --danger: #ff7d6e;
+  --danger-soft: rgba(255, 125, 110, 0.14);
+  --warning: #ffc861;
+  --warning-soft: rgba(255, 200, 97, 0.14);
+  --success: #9bea8a;
+  --success-soft: rgba(155, 234, 138, 0.12);
+
+  /* 圆角 */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* 间距 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* 字号 */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+
+  /* 布局 */
+  --app-max-width: 560px;
+  --tabbar-height: 64px;
+  --page-pad: 20px;
+  --page-bottom-pad: calc(var(--tabbar-height) + 32px + env(safe-area-inset-bottom, 0px));
+
+  /* 阴影/动效 */
+  --shadow-card: 0 18px 40px rgba(0, 0, 0, 0.28);
+  --shadow-sheet: 0 -18px 60px rgba(0, 0, 0, 0.5);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration: 200ms;
+
+  /* 字体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  --font-number: "SF Pro Display", -apple-system, BlinkMacSystemFont, "DIN Alternate", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+
+  /* 安全区 */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration: 0ms;
+  }
+}

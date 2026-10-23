@@ -1,0 +1,52 @@
+{
+  "name": "练迹 FitLog · 训练记录",
+  "short_name": "练迹",
+  "description": "移动优先的健身训练记录与分析原型：动作图鉴、确定性搜索、训练记录、有依据的复盘与安全提示。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": "navigate-existing" },
+  "orientation": "portrait-primary",
+  "background_color": "#0a0e0d",
+  "theme_color": "#0a0e0d",
+  "categories": ["health", "fitness", "sports"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "开始训练",
+      "short_name": "训练",
+      "url": "./#/log/new",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "动作库",
+      "short_name": "动作",
+      "url": "./#/library",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

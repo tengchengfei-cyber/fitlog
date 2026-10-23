@@ -72,6 +72,15 @@ import {
   sessionVolumeMeta
 } from './logShared.js';
 import { createExercisePicker } from './exercisePicker.js';
+import {
+  adjustRestTimer,
+  clearRestTimer,
+  createRestTimer,
+  formatClock,
+  loadRestTimer,
+  remainingSeconds,
+  saveRestTimer
+} from './restTimer.js';
 
 // ---------- 小组件（页面内复用） ----------
 
@@ -219,6 +228,150 @@ export function activeSessionPage(ctx = {}) {
       ]
     })
   );
+
+  // ---------- 组间休息倒计时 ----------
+  const restTimeEl = el('span', { className: 'rest-timer__time', textContent: '01:30' });
+  const restHintEl = el('span', { className: 'rest-timer__hint', textContent: '组间休息' });
+  const restBar = el(
+    'div',
+    {
+      className: 'rest-timer',
+      hidden: true,
+      role: 'status',
+      'aria-live': 'polite',
+      'aria-label': '组间休息倒计时'
+    },
+    el(
+      'div',
+      { className: 'rest-timer__main' },
+      icon('timer', { size: 18 }),
+      el('div', { className: 'rest-timer__text' }, restHintEl, restTimeEl)
+    ),
+    el(
+      'div',
+      { className: 'rest-timer__actions' },
+      button({
+        label: '+15s',
+        variant: 'ghost',
+        size: 'sm',
+        onClick: () => {
+          if (!restTimer) return;
+          restTimer = adjustRestTimer(restTimer, 15);
+          saveRestTimer(restTimer);
+          restFinishedNotified = false;
+          restBar.classList.remove('is-done');
+          ensureRestTicker();
+          renderRestTimer();
+        }
+      }),
+      button({
+        label: '跳过',
+        variant: 'secondary',
+        size: 'sm',
+        onClick: () => stopRestTimer()
+      })
+    )
+  );
+  root.appendChild(restBar);
+
+  let restTimer = null;
+  let restInterval = null;
+  let restHideTimeout = null;
+  let restFinishedNotified = false;
+
+  function ensureRestTicker() {
+    if (restInterval) return;
+    restInterval = setInterval(renderRestTimer, 500);
+  }
+
+  function clearRestTicker() {
+    if (restInterval) {
+      clearInterval(restInterval);
+      restInterval = null;
+    }
+    if (restHideTimeout) {
+      clearTimeout(restHideTimeout);
+      restHideTimeout = null;
+    }
+  }
+
+  function hideRestBar() {
+    restBar.hidden = true;
+    restBar.classList.remove('is-done');
+  }
+
+  function stopRestTimer() {
+    clearRestTicker();
+    restTimer = null;
+    restFinishedNotified = false;
+    clearRestTimer();
+    hideRestBar();
+  }
+
+  function startRestTimer(seconds = 90) {
+    if (editMode) return;
+    clearRestTicker();
+    restTimer = createRestTimer({ durationSec: seconds });
+    saveRestTimer(restTimer);
+    restFinishedNotified = false;
+    restBar.hidden = false;
+    restBar.classList.remove('is-done');
+    restHintEl.textContent = '组间休息';
+    renderRestTimer();
+    ensureRestTicker();
+  }
+
+  function renderRestTimer() {
+    if (!restTimer) {
+      hideRestBar();
+      return;
+    }
+    const left = remainingSeconds(restTimer);
+    restTimeEl.textContent = formatClock(left);
+    restBar.hidden = false;
+    if (left > 0) {
+      restBar.classList.remove('is-done');
+      return;
+    }
+    restBar.classList.add('is-done');
+    restHintEl.textContent = '休息结束 · 开始下一组';
+    if (!restFinishedNotified) {
+      restFinishedNotified = true;
+      clearRestTimer();
+      clearInterval(restInterval);
+      restInterval = null;
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([80, 60, 80]);
+      } catch {
+        /* ignore */
+      }
+      toast('组间休息结束，可以开始下一组', { tone: 'success', duration: 3200 });
+      restHideTimeout = setTimeout(() => {
+        hideRestBar();
+        restTimer = null;
+      }, 7000);
+    }
+  }
+
+  const savedRestTimer = editMode ? null : loadRestTimer();
+  if (savedRestTimer) {
+    restTimer = savedRestTimer;
+    restBar.hidden = false;
+    renderRestTimer();
+    ensureRestTicker();
+  }
+
+  // 离开页面时停止 ticker（倒计时状态已持久化，下次进入可恢复）
+  if (typeof window !== 'undefined') {
+    window.addEventListener(
+      'hashchange',
+      () => {
+        clearRestTicker();
+      },
+      { once: true }
+    );
+  }
+
 
   // ---------- 自动保存 ----------
 
@@ -535,8 +688,11 @@ export function activeSessionPage(ctx = {}) {
           size: 'sm',
           iconName: 'plus',
           onClick: () => {
-            addSet(sessionExercise, {});
+            const added = addSet(sessionExercise, {});
             persist({ structural: true });
+            const previous = sessionExercise.sets[sessionExercise.sets.length - 2];
+            const restSec = added?.restSec ?? previous?.restSec ?? 90;
+            if (restSec > 0) startRestTimer(restSec);
           }
         }),
         button({
@@ -546,7 +702,11 @@ export function activeSessionPage(ctx = {}) {
           iconName: 'copy',
           disabled: counts.completedSets === 0,
           onClick: () => {
-            if (duplicatePreviousSet(sessionExercise)) persist({ structural: true });
+            const copy = duplicatePreviousSet(sessionExercise);
+            if (!copy) return;
+            persist({ structural: true });
+            const restSec = copy.restSec ?? 90;
+            if (restSec > 0) startRestTimer(restSec);
           }
         })
       ),

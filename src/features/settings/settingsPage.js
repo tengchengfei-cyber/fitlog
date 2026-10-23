@@ -215,6 +215,18 @@ function buildCloudSection() {
     });
   }
 
+  function canEditCloudConfig() {
+    if (typeof window === 'undefined' || !window.location) return false;
+    const host = window.location.hostname;
+    if (host === '127.0.0.1' || host === 'localhost') return true;
+    // 部署后如果临时需要重新配置，可用 ?owner=1 打开设置页（普通用户不会看到）
+    try {
+      return new URLSearchParams(window.location.search).get('owner') === '1';
+    } catch {
+      return false;
+    }
+  }
+
   function buildNodes() {
     const status = getCloudStatus();
     const docsLink = el('p', {
@@ -228,6 +240,30 @@ function buildCloudSection() {
     }));
 
     if (!status.configured) {
+      if (!canEditCloudConfig()) {
+        return [
+          card({
+            children: [
+              el(
+                'div',
+                { className: 'row row--between row--wrap mb-3' },
+                el('span', { className: 'strong', textContent: '本机模式' }),
+                badge({ label: '云端未配置', tone: 'neutral' })
+              ),
+              el('p', {
+                className: 'muted text-sm',
+                textContent:
+                  '应用提供方尚未为这个版本配置云端同步。所有训练记录、分析、AI 与知识库仍可正常使用，数据保存在本机浏览器；可导出 JSON 备份。'
+              }),
+              callout({
+                tone: 'info',
+                title: '不需要你填写任何服务器地址或密钥',
+                children: '如果这是你自己部署的版本，请让部署者在构建时注入 Supabase 配置（见部署文档）；普通用户无需操作。'
+              })
+            ]
+          })
+        ];
+      }
       const urlInput = textInput({
         value: '',
         placeholder: 'https://your-project.supabase.co',
@@ -250,13 +286,13 @@ function buildCloudSection() {
             el(
               'div',
               { className: 'row row--between row--wrap mb-3' },
-              el('span', { className: 'strong', textContent: '邮箱登录 + 跨设备同步（可选）' }),
-              badge({ label: '本地模式', tone: 'neutral' })
+              el('span', { className: 'strong', textContent: '部署者设置：云端连接（开发调试）' }),
+              badge({ label: '仅本机/owner', tone: 'warning' })
             ),
             el('p', {
               className: 'muted text-sm',
               textContent:
-                '默认完全保存在本机，不联网、不需要登录。若你有一个 Supabase 免费项目（邮箱验证码登录 + Postgres + 行级隔离），在这里填入项目地址与 anon key 即可启用跨设备同步；两台手机登录同一邮箱可看到同一份记录。'
+                '普通用户不应该看到这个表单。正式发布前请在构建时注入 Supabase 配置（FITLOG_SUPABASE_URL / FITLOG_SUPABASE_ANON_KEY），用户只需要登录。这里仅用于本地开发或临时调试。'
             }),
             el(
               'div',
@@ -327,10 +363,19 @@ function buildCloudSection() {
               badge({ label: `已连接 ${status.host}`, tone: 'info' })
             ),
             authNoticeNode(),
+            status.managed
+              ? callout({
+                  tone: 'info',
+                  title: '云端已由应用提供方配置',
+                  children:
+                    '你不需要填写 Supabase URL 或 Key，直接登录即可。训练数据按账号隔离，应用提供方无法读取你的私人记录（数据库 RLS）。'
+                })
+              : null,
             el('p', {
               className: 'muted text-sm',
-              textContent:
-                '推荐直接用 GitHub 账号登录：不需要邮箱验证码、不受邮件发送限制。也可以用邮箱登录（邮件里可能是验证码或确认链接）；两种方式登录后的云端数据相同。'
+              textContent: status.managed
+                ? '用 GitHub 账号登录即可跨设备同步训练记录；也可以用邮箱登录，两种方式登录后的云端数据相同。'
+                : '推荐直接用 GitHub 账号登录：不需要邮箱验证码、不受邮件发送限制。也可以用邮箱登录（邮件里可能是验证码或确认链接）；两种方式登录后的云端数据相同。'
             }),
             el(
               'div',
@@ -349,10 +394,13 @@ function buildCloudSection() {
                 }
               })
             ),
-            el('p', {
-              className: 'muted text-xs mt-2',
-              textContent: '首次使用需在 Supabase → Authentication → Providers 中开启 GitHub，并把 Client ID/Secret 填到 Supabase（详见 CLOUD_SYNC_SETUP 文档）；GitHub 授权后自动回到应用并同步。'
-            }),
+            status.managed
+              ? null
+              : el('p', {
+                  className: 'muted text-xs mt-2',
+                  textContent:
+                    '首次使用需在 Supabase → Authentication → Providers 中开启 GitHub，并把 Client ID/Secret 填到 Supabase（详见 CLOUD_SYNC_SETUP 文档）；GitHub 授权后自动回到应用并同步。'
+                }),
             divider({ space: 12 }),
             el('p', { className: 'muted text-sm', textContent: '或用邮箱登录：' }),
             el('div', { className: 'stack mt-3' }, field({ label: '邮箱', children: emailInput })),
@@ -408,25 +456,27 @@ function buildCloudSection() {
                     }
                   })
                 : null,
-              button({
-                label: '断开服务器',
-                variant: 'ghost',
-                onClick: () => {
-                  confirmDialog({
-                    title: '断开云同步？',
-                    message: '将清除本机的项目地址、anon key 与登录状态；本机训练数据保留。已上传的云端数据不会被删除。',
-                    confirmLabel: '断开',
-                    tone: 'danger',
-                    onConfirm: () => {
-                      disconnectCloud();
-                      render();
+              status.managed
+                ? null
+                : button({
+                    label: '断开服务器',
+                    variant: 'ghost',
+                    onClick: () => {
+                      confirmDialog({
+                        title: '断开云同步？',
+                        message: '将清除本机的项目地址、anon key 与登录状态；本机训练数据保留。已上传的云端数据不会被删除。',
+                        confirmLabel: '断开',
+                        tone: 'danger',
+                        onConfirm: () => {
+                          disconnectCloud();
+                          render();
+                        }
+                      });
                     }
-                  });
-                }
-              })
+                  })
             ),
             feedbackNode(),
-            docsLink
+            status.managed ? null : docsLink
           ]
         })
       ];
@@ -482,23 +532,25 @@ function buildCloudSection() {
                 render();
               }
             }),
-            button({
-              label: '断开服务器',
-              variant: 'ghost',
-              onClick: () => {
-                confirmDialog({
-                  title: '断开云同步？',
-                  message: '将退出登录并清除本机保存的项目地址与 anon key；本机训练数据保留，已上传的云端数据不会被删除。',
-                  confirmLabel: '断开',
-                  tone: 'danger',
-                  onConfirm: async () => {
-                    await logoutCloud();
-                    disconnectCloud();
-                    render();
+            status.managed
+              ? null
+              : button({
+                  label: '断开服务器',
+                  variant: 'ghost',
+                  onClick: () => {
+                    confirmDialog({
+                      title: '断开云同步？',
+                      message: '将退出登录并清除本机保存的项目地址与 anon key；本机训练数据保留，已上传的云端数据不会被删除。',
+                      confirmLabel: '断开',
+                      tone: 'danger',
+                      onConfirm: async () => {
+                        await logoutCloud();
+                        disconnectCloud();
+                        render();
+                      }
+                    });
                   }
-                });
-              }
-            })
+                })
           ),
           feedbackNode(),
           divider({ space: 12 }),

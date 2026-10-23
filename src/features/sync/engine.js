@@ -11,6 +11,7 @@ import {
   clearAuthSession,
   clearCloudConfig,
   isCloudConfigured,
+  isManagedCloudConfig,
   loadAuthSession,
   loadCloudConfig,
   loadSyncMeta,
@@ -52,6 +53,7 @@ export function getCloudStatus() {
   const meta = loadSyncMeta();
   return {
     configured: isCloudConfigured(config),
+    managed: isManagedCloudConfig(),
     host: cloudHostLabel(config),
     loggedIn: Boolean(session && session.user && session.user.id),
     email: (session && session.user && session.user.email) || '',

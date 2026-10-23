@@ -9,6 +9,8 @@ export const CLOUD_CONFIG_KEY = 'fitlog.cloudConfig.v1';
 export const AUTH_SESSION_KEY = 'fitlog.authSession.v1';
 export const SYNC_META_KEY = 'fitlog.syncMeta.v1';
 
+import { APP_CONFIG } from '../../config/appConfig.js';
+
 function storageAvailable() {
   try {
     return typeof localStorage !== 'undefined' && localStorage !== null;
@@ -21,20 +23,41 @@ export function defaultCloudConfig() {
   return { provider: 'supabase', supabaseUrl: '', anonKey: '' };
 }
 
+/** 部署者构建时注入的默认 Supabase 配置（对普通用户隐藏）。 */
+export function getBuiltInCloudConfig() {
+  const cloud = (APP_CONFIG && APP_CONFIG.cloud) || {};
+  return {
+    provider: 'supabase',
+    supabaseUrl: normalizeSupabaseUrl(cloud.supabaseUrl),
+    anonKey: String(cloud.anonKey || '').trim()
+  };
+}
+
+/** 是否由应用提供方统一配置（用户不再需要填写 URL/Key）。 */
+export function isManagedCloudConfig() {
+  if (!isCloudConfigured(getBuiltInCloudConfig())) return false;
+  if (!storageAvailable()) return true;
+  return !localStorage.getItem(CLOUD_CONFIG_KEY);
+}
+
 export function loadCloudConfig() {
   const base = defaultCloudConfig();
-  if (!storageAvailable()) return base;
+  const builtIn = getBuiltInCloudConfig();
+  const fallback = isCloudConfigured(builtIn) ? builtIn : base;
+  if (!storageAvailable()) return fallback;
   try {
     const raw = localStorage.getItem(CLOUD_CONFIG_KEY);
-    if (!raw) return base;
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    return {
+    const override = {
       provider: 'supabase',
       supabaseUrl: typeof parsed.supabaseUrl === 'string' ? parsed.supabaseUrl.replace(/\/+$/, '') : '',
       anonKey: typeof parsed.anonKey === 'string' ? parsed.anonKey : ''
     };
+    // 开发/高级用户显式保存的配置优先；无效时回退到部署者配置。
+    return isCloudConfigured(override) ? override : fallback;
   } catch {
-    return base;
+    return fallback;
   }
 }
 

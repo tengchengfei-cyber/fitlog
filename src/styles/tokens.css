@@ -1,46 +1,46 @@
 /**
- * 设计 token（深色运动风格）。所有颜色/间距/圆角/字号必须优先使用变量。
+ * 设计 token（暖白 + 森林绿，轻量高级感）。所有颜色/间距/圆角/字号必须优先使用变量。
  */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   /* 底色与表面 */
-  --bg: #0a0e0d;
-  --bg-elevated: #101614;
-  --surface: #151d1a;
-  --surface-2: #1b2521;
-  --surface-3: #22312b;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --bg: #f5f2ea;
+  --bg-elevated: #fffdf9;
+  --surface: #ffffff;
+  --surface-2: #f8f5ee;
+  --surface-3: #efe9dd;
+  --border: rgba(23, 32, 27, 0.09);
+  --border-strong: rgba(23, 32, 27, 0.16);
 
   /* 文字 */
-  --text: #eef4f0;
-  --text-secondary: #b9c7c0;
-  --text-muted: #8c9c94;
-  --text-inverse: #0a0e0d;
+  --text: #18211c;
+  --text-secondary: #52605a;
+  --text-muted: #87918b;
+  --text-inverse: #fffdf9;
 
   /* 品牌与语义色 */
-  --accent: #d6ff4b;
-  --accent-strong: #e4ff85;
-  --accent-soft: rgba(214, 255, 75, 0.12);
-  --accent-contrast: #10160b;
-  --teal: #5ce3c4;
-  --teal-soft: rgba(92, 227, 196, 0.12);
-  --blue: #7cc4ff;
-  --blue-soft: rgba(124, 196, 255, 0.12);
-  --danger: #ff7d6e;
-  --danger-soft: rgba(255, 125, 110, 0.14);
-  --warning: #ffc861;
-  --warning-soft: rgba(255, 200, 97, 0.14);
-  --success: #9bea8a;
-  --success-soft: rgba(155, 234, 138, 0.12);
+  --accent: #2f6b4f;
+  --accent-strong: #24543e;
+  --accent-soft: rgba(47, 107, 79, 0.1);
+  --accent-contrast: #fffdf9;
+  --teal: #2f7f70;
+  --teal-soft: rgba(47, 127, 112, 0.12);
+  --blue: #3c6f9e;
+  --blue-soft: rgba(60, 111, 158, 0.12);
+  --danger: #b94a3c;
+  --danger-soft: rgba(185, 74, 60, 0.1);
+  --warning: #a8741e;
+  --warning-soft: rgba(168, 116, 30, 0.12);
+  --success: #3d7a4f;
+  --success-soft: rgba(61, 122, 79, 0.12);
 
   /* 圆角 */
   --radius-xs: 8px;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
-  --radius-xl: 28px;
+  --radius-sm: 11px;
+  --radius-md: 15px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
   --radius-pill: 999px;
 
   /* 间距 */
@@ -59,9 +59,9 @@
   --text-base: 15px;
   --text-md: 16px;
   --text-lg: 18px;
-  --text-xl: 22px;
-  --text-2xl: 28px;
-  --text-3xl: 34px;
+  --text-xl: 23px;
+  --text-2xl: 29px;
+  --text-3xl: 36px;
 
   /* 布局 */
   --app-max-width: 560px;
@@ -70,8 +70,8 @@
   --page-bottom-pad: calc(var(--tabbar-height) + 32px + env(safe-area-inset-bottom, 0px));
 
   /* 阴影/动效 */
-  --shadow-card: 0 18px 40px rgba(0, 0, 0, 0.28);
-  --shadow-sheet: 0 -18px 60px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 12px 32px rgba(23, 32, 27, 0.08);
+  --shadow-sheet: 0 -20px 55px rgba(23, 32, 27, 0.18);
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --duration-fast: 120ms;
   --duration: 200ms;

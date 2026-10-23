@@ -5,7 +5,7 @@
  * - 静态资源 stale-while-revalidate（开发时也能尽快拿到新文件）。
  * 注意：这属于原型阶段的本机离线缓存，不代表云端同步。
  */
-const CACHE_NAME = 'fitlog-proto-v3';
+const CACHE_NAME = 'fitlog-proto-v4';
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -22,6 +22,7 @@ const PRECACHE_URLS = [
   './src/app/storage.js',
   './src/app/store.js',
   './src/app/metrics.js',
+  './src/config/appConfig.js',
   './src/ui/icons.js',
   './src/ui/index.js',
   './src/data/muscles.js',
@@ -39,6 +40,7 @@ const PRECACHE_URLS = [
   './src/features/sync/engine.js',
   './src/features/sync/redirect.js',
   './src/features/library/exercisePack.js',
+  './src/features/log/restTimer.js',
   './icons/icon.svg'
 ];
 

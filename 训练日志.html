@@ -1352,6 +1352,22 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; min-height:
 .cloud-msg.ok { color: #246b45; background: rgba(58, 143, 91, .09); }
 .cloud-msg.err { color: var(--danger); background: rgba(196, 61, 48, .07); }
 
+/* 细分肌群多选 */
+.muscle-groups { display: flex; flex-direction: column; gap: 7px; }
+.muscle-row { display: flex; gap: 8px; align-items: flex-start; }
+.muscle-region { flex: 0 0 32px; padding-top: 8px; font-size: 11px; color: var(--muted); }
+.muscle-row .chiprow { flex: 1; gap: 6px; }
+
+/* 补记直接录入 */
+.bf-ex { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.bf-ex:last-of-type { border-bottom: 0; }
+.bf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.bf-name { font-size: 14px; font-weight: 600; }
+.bf-target { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.bf-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.bf-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.bf-fields .input { height: 38px; font-size: 14px; padding: 0 10px; }
+
 
 </style>
   <script data-page-node-id="656LsAYnBIyvz0AXSIaSiw" data-pnid-children="aiCXPN7cAc9Prh78Gnn4mq">
@@ -2101,6 +2117,92 @@ const LIB = {
   }
 };
 
+/* ---------------- 细分肌群与主练/辅助肌群 ----------------
+   训练量统计仍使用 group（粗分类，保证历史数据可比较）；
+   primaryMuscles / secondaryMuscles 用于动作详情、筛选和训练复盘。 */
+const MUSCLE_GROUPS = [
+  { region: '胸', items: ['胸大肌上束', '胸大肌中束', '胸大肌下束'] },
+  { region: '背', items: ['背阔肌', '大圆肌', '斜方肌上束', '斜方肌中束', '斜方肌下束', '菱形肌', '竖脊肌'] },
+  { region: '肩', items: ['三角肌前束', '三角肌中束', '三角肌后束'] },
+  { region: '手臂', items: ['肱二头肌长头', '肱二头肌短头', '肱肌', '肱桡肌', '肱三头肌长头', '肱三头肌外侧头', '肱三头肌内侧头', '前臂'] },
+  { region: '下肢', items: ['臀大肌', '臀中肌', '臀小肌', '股四头肌', '腘绳肌', '内收肌', '腓肠肌', '比目鱼肌'] },
+  { region: '核心', items: ['腹直肌', '腹斜肌', '腹横肌', '髂腰肌'] }
+];
+const MUSCLE_FLAT = MUSCLE_GROUPS.reduce((a, g) => a.concat(g.items), []);
+const MAIN_LIFT_LABELS = { bench: '卧推', squat: '深蹲', rdl: '硬拉', latpull: '高位下拉' };
+const TAG_TO_MUSCLE = {
+  '胸': '胸大肌中束', '上胸': '胸大肌上束', '背': '背阔肌', '背阔肌': '背阔肌', '背厚度': '菱形肌',
+  '菱形肌': '菱形肌', '上背': '斜方肌中束', '斜方肌': '斜方肌上束', '竖脊肌': '竖脊肌',
+  '肩': '三角肌前束', '肩前束': '三角肌前束', '肩中束': '三角肌中束', '后束': '三角肌后束', '三角肌后束': '三角肌后束',
+  '肱二头肌': '肱二头肌长头', '长头': '肱三头肌长头', '肱三头肌': '肱三头肌外侧头',
+  '臀': '臀大肌', '臀中肌': '臀中肌', '股四头肌': '股四头肌', '腘绳肌': '腘绳肌', '小腿': '腓肠肌', '比目鱼肌': '比目鱼肌',
+  '核心': '腹直肌', '抗伸展': '腹横肌', '抗旋转': '腹斜肌', '动态屈曲': '腹直肌', '前臂': '前臂', '平衡': ''
+};
+function inferMuscleMeta(ex) {
+  const name = ex.name || '';
+  const tags = Array.isArray(ex.tags) ? ex.tags : [];
+  let primary = [];
+  if (tagged('上胸') || /上斜|上胸/.test(name)) primary = ['胸大肌上束'];
+  else if (/下斜/.test(name)) primary = ['胸大肌下束'];
+  else if (ex.group === '胸') primary = ['胸大肌中束'];
+  else if (ex.group === '背') {
+    primary = ['背阔肌'];
+    if (/划船|T 杠|T杠/.test(name)) primary.push('菱形肌');
+  } else if (ex.group === '肩') {
+    if (/侧平举/.test(name)) primary = ['三角肌中束'];
+    else if (/反向飞鸟|面拉|后束/.test(name)) primary = ['三角肌后束'];
+    else if (/推举|推肩/.test(name)) primary = ['三角肌前束', '三角肌中束'];
+    else primary = ['三角肌前束'];
+  } else if (ex.group === '肱二头肌') primary = ['肱二头肌长头', '肱二头肌短头'];
+  else if (ex.group === '肱三头肌') {
+    primary = ['肱三头肌外侧头'];
+    if (/过顶|长头/.test(name)) primary = ['肱三头肌长头'];
+  } else if (ex.group === '股四头肌') primary = ['股四头肌'];
+  else if (ex.group === '腘绳肌') primary = ['腘绳肌'];
+  else if (ex.group === '臀') primary = tagged('臀中肌') ? ['臀中肌'] : ['臀大肌'];
+  else if (ex.group === '核心') {
+    primary = [(/抗旋转/.test(tags.join(' ')) ? '腹斜肌' : '腹直肌')];
+    if (/抗伸展|死虫/.test(name + tags.join(' '))) primary.push('腹横肌');
+    if (/山羊|竖脊/.test(name + tags.join(' '))) primary = ['竖脊肌'];
+  } else if (ex.group === '小腿') {
+    primary = /坐姿/.test(name) ? ['比目鱼肌'] : ['腓肠肌', '比目鱼肌'];
+  } else if (ex.group === '其他') {
+    primary = [];
+  } else {
+    primary = [ex.group];
+  }
+  const secondary = [];
+  tags.forEach(t => {
+    const m = TAG_TO_MUSCLE[t];
+    if (m && primary.indexOf(m) < 0 && secondary.indexOf(m) < 0) secondary.push(m);
+  });
+  if (!primary.length) primary = ['腹直肌'];
+  return { primaryMuscles: primary, secondaryMuscles: secondary };
+
+  function tagged(t) { return tags.indexOf(t) >= 0; }
+}
+/* 传统硬拉：作为可选主项动作加入动作库（不强制改训练计划） */
+if (!LIB.deadlift) {
+  LIB.deadlift = {
+    name: '传统硬拉', group: '腘绳肌', tags: ['臀', '竖脊肌', '背阔肌'], equip: '杠铃',
+    gear: '杠铃 + 杠铃片', load: 'barbell', mode: 'reps',
+    cues: ['杠铃在脚掌中部上方，屈髋屈膝抓杠', '起杠前收紧背阔肌，保持脊柱中立', '用腿推地，杠铃贴腿上升；不要先抬臀'],
+    caution: '腰部不适或动作不稳时不要加重量；先用罗马尼亚硬拉练髋铰链。',
+    alt: ['rdl', 'hipthrust'], swap: ''
+  };
+}
+Object.keys(LIB).forEach(id => {
+  const ex = LIB[id];
+  if (!ex) return;
+  if (!Array.isArray(ex.primaryMuscles) || !ex.primaryMuscles.length) {
+    const meta = inferMuscleMeta(ex);
+    ex.primaryMuscles = meta.primaryMuscles;
+    ex.secondaryMuscles = meta.secondaryMuscles;
+  }
+  if (!Array.isArray(ex.secondaryMuscles)) ex.secondaryMuscles = [];
+  ex.main = ['bench', 'squat', 'rdl', 'deadlift', 'latpull'].indexOf(id) >= 0;
+});
+
 /* ---------------- 平替建议：器械被占时怎么换 ----------------
    alt  首选平替（同动作模式优先）
    swap 一句话建议，显示在训练页平替弹层与动作库详情
@@ -2190,8 +2292,8 @@ const PLAN_DEFAULT = {
   wed: {
     key: 'wed', label: '周三', name: '拉 A', focus: '强度日 · 大重量低次数',
     exercises: [
-      { exId: 'pullup', sets: 2, reps: [1, 2], rir: '≥1', rest: 120, tech: true, note: '技术组：不做最大次数、不摆浪，不计入增肌组' },
-      { exId: 'assistedpullup', sets: 4, reps: [6, 8], rir: '2', rest: 150, note: '背部主项：能标准做 8 次就改负重引体' },
+      { exId: 'pullup', sets: 2, reps: [1, 2], rir: '≥1', rest: 120, tech: true, note: '技术组：不做最大次数、不摆浪，不计入增肌组，也不作为主项表现' },
+      { exId: 'latpull', sets: 4, reps: [6, 8], rir: '2', rest: 150, note: '背部主项：高位下拉；能标准引体 8 次后再考虑换成引体' },
       { exId: 'tbar', sets: 3, reps: [6, 8], rir: '2', rest: 150, note: '水平拉大重量；胸托版本优先，顶端停 1 秒' },
       { exId: 'barbellcurl', sets: 2, reps: [8, 10], rir: '1–2', rest: 75, note: '躯干不后仰，肘部固定在体侧' },
       { exId: 'hangingknee', sets: 2, reps: [10, 12], rir: '2', rest: 75, note: '先骨盆后倾再抬膝，身体不摆动' }
@@ -2244,7 +2346,7 @@ const PLAN_DEFAULT = {
 const PLAN = JSON.parse(JSON.stringify(PLAN_DEFAULT));
 
 /* 计划版本：内容修订后 +1，旧手机上的本地计划会随版本升级自动换成新版 */
-const PLAN_VERSION = 5;
+const PLAN_VERSION = 6;
 
 /* 默认计划每周工作组总数（用于复盘折算，计划改动后同步） */
 const PLAN_TOTAL_SETS = 80;
@@ -2513,10 +2615,18 @@ function registerCustomExercises() {
     const alt = (Array.isArray(ex.alt) ? ex.alt : [])
       .filter(a => typeof a === 'string' && SAFE_ID_RE.test(a))
       .slice(0, 20);
+    const cleanMuscles = arr => (Array.isArray(arr) ? arr : [])
+      .filter(m => typeof m === 'string' && MUSCLE_FLAT.indexOf(m) >= 0)
+      .slice(0, 12);
+    const primaryMuscles = cleanMuscles(ex.primaryMuscles);
+    const secondaryMuscles = cleanMuscles(ex.secondaryMuscles).filter(m => primaryMuscles.indexOf(m) < 0);
     LIB[id] = {
       name,
       group: safeString(ex.group, 20) || '其他',
       tags: [safeString(ex.group, 20) || '其他'],
+      primaryMuscles: primaryMuscles.length ? primaryMuscles : [safeString(ex.group, 20) || '其他'],
+      secondaryMuscles,
+      main: !!ex.main,
       equip,
       gear: safeString(ex.gear, 40) || equip,
       load: EQUIP_LOAD[equip] || 'other',
@@ -5523,7 +5633,7 @@ function openBackfillSheet(k0) {
       '<div class="f12 mut" style="margin:8px 0 14px">补哪天的就选哪天；留空或选未来日期都不行。</div>' +
       '<div class="optlist">' + rows + '</div>' +
       '<div class="note mt12">' + icon('info') +
-      '<span>补记会打开正常的训练流程：完成一组就记一组，没做的组留空即可。事后想改日期，在当天记录右上角编辑。</span></div>',
+      '<span>补记不再进入训练界面：填每个动作完成的组数、重量/次数（或秒数/RPE），保存后直接进入当天记录。个别组不同可在历史里逐组修改。</span></div>',
     onMount: (mask, close) => {
       const dateInput = mask.querySelector('#bf-date');
       mask.querySelectorAll('[data-day]').forEach(b => {
@@ -5532,10 +5642,96 @@ function openBackfillSheet(k0) {
           const v = dateInput ? dateInput.value.trim() : date;
           if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('请选择补记日期'); return; }
           close();
-          setTimeout(() => startWorkout(dayKey, { date: v }), 180);
+          setTimeout(() => openBackfillRecordSheet(dayKey, v), 180);
         };
       });
     }
+  });
+}
+
+/* 补记直接录入：不进入训练状态机，按动作填一组统一数据并立即保存 */
+function openBackfillRecordSheet(dayKey, date) {
+  const plan = PLAN[dayKey];
+  if (!plan || !plan.exercises.length) { toast('这一天没有计划动作'); return; }
+  const rows = plan.exercises.map((pe, i) => {
+    const ex = makeExerciseFromPlan(pe);
+    if (!ex) return '';
+    const mode = exMode(ex.exId);
+    const assist = isAssist(ex.exId);
+    const u = unitLabel();
+    const valueLabel = mode === 'time' ? '保持秒数' : mode === 'quality' ? 'RPE（4–10）' : assist ? '辅助重量 (' + u + ')' : '重量 (' + u + ')';
+    return '<div class="bf-ex" data-bf-ex="' + i + '">' +
+      '<div class="bf-head"><span class="bf-name">' + esc(ex.name) + '</span>' +
+        '<span class="bf-target">计划 ' + ex.sets.length + ' 组 · ' + repRange(pe.reps) + (pe.unit === 'sec' ? ' 秒' : ' 次') + '</span></div>' +
+      '<div class="bf-fields">' +
+        '<label>完成组数<input class="input" data-bf="sets" type="text" inputmode="numeric" value="' + ex.sets.length + '"></label>' +
+        '<label>' + valueLabel + '<input class="input" data-bf="value" type="text" inputmode="decimal" placeholder="' + (mode === 'quality' ? '8' : mode === 'time' ? '30' : '') + '"></label>' +
+        (mode === 'time' ? '' : '<label>次数<input class="input" data-bf="reps" type="text" inputmode="numeric" placeholder="' + pe.reps[0] + '–' + pe.reps[1] + '"></label>') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  openSheet({
+    title: '补记 ' + plan.name + ' · ' + fmtCN(date),
+    desc: '直接录入，不进入训练计时；保存后可在历史里逐组修改',
+    body: '<div class="f12 mut" style="line-height:1.65;margin-bottom:12px">' +
+        '每个动作填一次即可，会应用到该动作完成的组。只记做过的动作，组数填 0 表示没做。' +
+      '</div>' + rows +
+      '<div class="f11 mut mt12">补记不会改变计划模板；重量单位按设置中的 ' + unitLabel() + '。</div>',
+    actions: [
+      { label: '取消', cls: 'ghost' },
+      {
+        label: '保存补记', cls: 'primary', onClick: () => {
+          const s = buildSession(dayKey, date);
+          s.backfill = true;
+          s.status = 'completed';
+          s.phase = 'WorkoutComplete';
+          const base = parseKey(date).getTime() + 19 * 3600e3;
+          s.realStart = base;
+          s.startedAt = new Date(base).toISOString();
+          s.endedAt = new Date(base + 60 * 60e3).toISOString();
+          let recorded = 0;
+          s.exercises.forEach((ex, i) => {
+            const row = document.querySelector('[data-bf-ex="' + i + '"]');
+            if (!row) { ex.status = 'skipped'; ex.sets.forEach(st => { st.status = 'skipped'; }); return; }
+            const get = name => (row.querySelector('[data-bf="' + name + '"]') || {}).value || '';
+            const n = Math.max(0, Math.min(ex.sets.length, Math.round(Number(get('sets')) || 0)));
+            if (!n) {
+              ex.status = 'skipped';
+              ex.sets.forEach(st => { st.status = 'skipped'; });
+              return;
+            }
+            const rawValue = get('value').trim();
+            const rawReps = get('reps').trim();
+            const mode = exMode(ex.exId);
+            const value = rawValue === '' ? null : (mode === 'time' || mode === 'quality' ? Number(rawValue) : fromUnit(rawValue));
+            const reps = rawReps === '' ? null : Math.max(0, Math.round(Number(rawReps) || 0));
+            ex.sets.forEach((st, si) => {
+              if (si >= n) { st.status = 'skipped'; return; }
+              st.status = 'completed';
+              st.completedAt = Date.now();
+              st.note = '';
+              if (mode === 'time') { st.seconds = value; st.rir = null; }
+              else if (mode === 'quality') { st.rpe = value; st.reps = reps; }
+              else { st.weight = value; st.reps = reps; st.rir = null; }
+              st.dataComplete = setHasData(st, ex.exId);
+              recorded++;
+            });
+            ex.status = 'done';
+          });
+          if (!recorded) { toast('至少填一个动作的完成组数'); return false; }
+          DB.sessions.push(s);
+          saveDB(true);
+          UI.tab = 'history';
+          UI.selectedDate = date;
+          setTimeout(() => {
+            renderCurrentTab();
+            toast('补记已保存');
+          }, 220);
+          return true;
+        }
+      }
+    ]
   });
 }
 
@@ -5668,7 +5864,7 @@ function renderStats() {
     '<div class="card">' +
       '<div class="card-title" style="margin-bottom:10px"><h2>主项表现</h2><span class="hint">按日期</span></div>' +
       '<div class="segmented block" style="margin-bottom:12px">' +
-        [['bench', '卧推'], ['squat', '深蹲'], ['pullup', '引体'], ['assistedpullup', '辅助引体']].map(t =>
+        [['bench', '卧推'], ['squat', '深蹲'], ['latpull', '高位下拉'], ['rdl', '硬拉']].map(t =>
           '<button data-lift="' + t[0] + '" class="' + (UI.liftTab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') +
       '</div>' +
       renderLiftChart(UI.liftTab) +
@@ -5767,7 +5963,7 @@ function liftPoints(exId) {
 }
 
 function renderLiftChart(tab) {
-  const map = { bench: 'bench', squat: 'squat', pullup: 'pullup', assistedpullup: 'assistedpullup' };
+  const map = { bench: 'bench', squat: 'squat', latpull: 'latpull', rdl: 'rdl' };
   const exId = map[tab] || 'bench';
   const pts = liftPoints(exId);
   if (pts.length < 2) return emptyBlock('「' + LIB[exId].name + '」记录不足 2 次', 'chart');
@@ -5878,7 +6074,7 @@ function buildReview(week) {
   }
 
   // 关键动作
-  const lifts = [['bench', '卧推'], ['squat', '深蹲'], ['pullup', '引体']];
+  const lifts = [['bench', '卧推'], ['squat', '深蹲'], ['latpull', '高位下拉'], ['rdl', '硬拉']];
   const parts = [];
   lifts.forEach(([id, name]) => {
     const pts = liftPoints(id).filter(p => p.x >= week.start && p.x <= week.end);
@@ -6043,10 +6239,22 @@ function openExerciseEditor(exId, onSaved) {
   let mode = cur.mode || 'reps';
   let assist = !!cur.assist;
   let perSide = !!cur.perSide;
+  let primaryMuscles = Array.isArray(cur.primaryMuscles) ? cur.primaryMuscles.slice() : [];
+  let secondaryMuscles = Array.isArray(cur.secondaryMuscles) ? cur.secondaryMuscles.slice() : [];
+  if (!primaryMuscles.length) {
+    const inferred = inferMuscleMeta({ name: cur.name || '', group: group, tags: cur.tags || [group] });
+    primaryMuscles = inferred.primaryMuscles;
+    secondaryMuscles = inferred.secondaryMuscles;
+  }
   let alts = (cur.alt || []).filter(id => LIB[id] && !LIB[id].archived);
 
   const chip = (attr, val, label, on) =>
     '<button data-' + attr + '="' + esc(val) + '" class="' + (on ? 'on' : '') + '">' + esc(label) + '</button>';
+
+  const musclePicker = (attr, selected) => MUSCLE_GROUPS.map(g =>
+    '<div class="muscle-row"><span class="muscle-region">' + esc(g.region) + '</span>' +
+      '<div class="chiprow wrap">' + g.items.map(m => chip(attr, m, m, selected.indexOf(m) >= 0)).join('') + '</div>' +
+    '</div>').join('');
 
   const altPool = () => Object.keys(LIB).filter(id =>
     id !== exId && !LIB[id].archived && LIB[id].group === group);
@@ -6064,8 +6272,12 @@ function openExerciseEditor(exId, onSaved) {
     body:
       '<div class="ex-field"><label>动作名称</label>' +
         '<input class="input" id="ex-name" type="text" maxlength="20" placeholder="例如：器械胸推" value="' + esc(cur.name || '') + '"></div>' +
-      '<div class="ex-field"><label>主练肌群 · 计入训练量统计</label>' +
+      '<div class="ex-field"><label>训练量统计肌群（单选）</label>' +
         '<div class="chiprow wrap" id="ex-group">' + EX_GROUPS.map(g => chip('exg', g, g, g === group)).join('') + '</div></div>' +
+      '<div class="ex-field"><label>主练肌群 · 可多选</label>' +
+        '<div class="muscle-groups" id="ex-primary">' + musclePicker('pm', primaryMuscles) + '</div></div>' +
+      '<div class="ex-field"><label>辅助肌群 · 可多选</label>' +
+        '<div class="muscle-groups" id="ex-secondary">' + musclePicker('sm', secondaryMuscles) + '</div></div>' +
       '<div class="ex-field"><label>器械</label>' +
         '<div class="chiprow wrap" id="ex-equip">' + EX_EQUIPS.map(e => chip('exe', e, e, e === equip)).join('') + '</div></div>' +
       '<div class="ex-field"><label>记录方式</label>' +
@@ -6106,6 +6318,8 @@ function openExerciseEditor(exId, onSaved) {
             id: exId || undefined,
             name: name,
             group: group,
+            primaryMuscles: primaryMuscles.slice(),
+            secondaryMuscles: secondaryMuscles.slice(),
             equip: equip,
             load: EQUIP_LOAD[equip] || 'other',
             gear: (h.el.querySelector('#ex-gear').value || '').trim() || equip,
@@ -6142,6 +6356,26 @@ function openExerciseEditor(exId, onSaved) {
         mask.querySelectorAll('[data-exg]').forEach(x => x.classList.toggle('on', x === b));
         alts = alts.filter(id => LIB[id] && LIB[id].group === group);
         paintAlts();
+      });
+
+      const paintMuscles = (kind) => {
+        const selected = kind === 'pm' ? primaryMuscles : secondaryMuscles;
+        mask.querySelectorAll('[data-' + kind + ']').forEach(x =>
+          x.classList.toggle('on', selected.indexOf(x.dataset[kind]) >= 0));
+      };
+      mask.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => {
+        const m = b.dataset.pm;
+        if (primaryMuscles.indexOf(m) >= 0) primaryMuscles = primaryMuscles.filter(x => x !== m);
+        else primaryMuscles = primaryMuscles.concat(m).slice(0, 8);
+        secondaryMuscles = secondaryMuscles.filter(x => x !== m);
+        paintMuscles('pm'); paintMuscles('sm');
+      });
+      mask.querySelectorAll('[data-sm]').forEach(b => b.onclick = () => {
+        const m = b.dataset.sm;
+        if (secondaryMuscles.indexOf(m) >= 0) secondaryMuscles = secondaryMuscles.filter(x => x !== m);
+        else secondaryMuscles = secondaryMuscles.concat(m).slice(0, 8);
+        primaryMuscles = primaryMuscles.filter(x => x !== m);
+        paintMuscles('pm'); paintMuscles('sm');
       });
 
       mask.querySelectorAll('[data-exe]').forEach(b => b.onclick = () => {
@@ -6222,6 +6456,8 @@ function showExerciseDetail(exId, fromWorkout) {
         '<div class="f11" style="color:rgba(0,0,0,.5);letter-spacing:.1em;text-transform:uppercase">' + esc(l.equip) + ' · ' + esc(l.group) + (l.custom ? ' · 自建' : '') + '</div>' +
         '<h3>' + esc(l.name) + '</h3>' +
         '<div class="f12 mut">' + esc(l.gear) + ' · ' + recordModeText(exId) + '</div>' +
+        '<div class="f11 mut" style="margin-top:5px;line-height:1.6">主练：' + esc((l.primaryMuscles || [l.group]).join('、')) +
+          ((l.secondaryMuscles || []).length ? ' · 辅助：' + esc(l.secondaryMuscles.join('、')) : '') + '</div>' +
       '</div>' +
       '<div class="section-label" style="margin-top:0">动作要点</div>' +
       '<ul class="cue-list">' + l.cues.map((c, i) => '<li><span class="n">' + (i + 1) + '</span><span>' + esc(c) + '</span></li>').join('') + '</ul>' +

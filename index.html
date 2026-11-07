@@ -1365,9 +1365,22 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; min-height:
 .bf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .bf-name { font-size: 14px; font-weight: 600; }
 .bf-target { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.bf-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.bf-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
-.bf-fields .input { height: 38px; font-size: 14px; padding: 0 10px; }
+.bf-set-head, .bf-set-row { display: grid; grid-template-columns: 26px repeat(3, minmax(0, 1fr)); gap: 7px; align-items: center; }
+.bf-set-head { margin-bottom: 5px; font-size: 10.5px; color: var(--muted); }
+.bf-set-head span:not(:empty) { padding-left: 2px; }
+.bf-set-list { display: flex; flex-direction: column; gap: 6px; }
+.bf-set-no { font-size: 11px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.bf-set-row .input { height: 36px; font-size: 14px; padding: 0 9px; }
+
+/* 热身 / 拉伸引导页 */
+.wk-scroll.guide-mode { display: flex; flex-direction: column; justify-content: center; padding: 34px 22px 28px; }
+.guide-page { max-width: 340px; margin: 0 auto; }
+.guide-eyebrow { font-size: 11px; letter-spacing: .16em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+.guide-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+.guide-copy { font-size: 15px; line-height: 1.9; color: var(--text); }
+.guide-copy p { margin: 0 0 12px; }
+.guide-copy p.lead { font-size: 18px; font-weight: 600; line-height: 1.6; margin-bottom: 16px; }
+.guide-copy p:last-child { margin-bottom: 0; }
 
 
 </style>
@@ -2342,12 +2355,30 @@ const PLAN_DEFAULT = {
   }
 };
 
+/* 热身 / 拉伸只作为引导文字，不进入动作库、不计组、不参与训练量统计 */
+const WARMUP_TEXTS = {
+  leg: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做动态活动：髋绕环、弓步转体、踝关节活动各 8–10 次，臀桥 10 次激活臀部。\n第一个主项用空杆和 50% / 70% 重量做 2–3 组递增热身，每组 3–5 次；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。',
+  push: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做动态活动：肩绕环、弹力带肩胛下沉、肩袖外旋各 10–12 次，胸椎旋转每侧 6–8 次。\n第一个推类主项用空杆和 50% / 70% 重量做 2–3 组递增热身，每组 3–5 次；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。',
+  pull: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做动态活动：弹力带下拉、肩胛引体、肩绕环各 10–12 次，髋部动态活动 8–10 次。\n第一个拉类主项先用轻重量做 2 组，每组 8–10 次，找肩胛下沉和背阔肌发力感；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。'
+};
+const STRETCH_TEXTS = {
+  leg: '训练后做 5–8 分钟低强度放松：髋屈肌拉伸、股四头肌拉伸、腘绳肌轻拉伸、小腿靠墙拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，让心率降下来。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；出现锐痛、麻木或关节不适立即停止。\n拉伸不记录、不计组。',
+  push: '训练后做 5–8 分钟低强度放松：胸大肌门框拉伸、背阔肌跪姿拉伸、肩后侧拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，放松肩颈。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；肩前侧有挤压感时减小幅度。\n拉伸不记录、不计组。',
+  pull: '训练后做 5–8 分钟低强度放松：背阔肌跪姿拉伸、胸椎旋转、肱二头肌轻拉伸、前臂拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，放松肩颈。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；出现麻木或刺痛立即停止。\n拉伸不记录、不计组。'
+};
+const DAY_GUIDE_TYPE = { mon: 'leg', tue: 'push', wed: 'pull', thu: '', fri: 'leg', sat: 'push', sun: 'pull' };
+WEEK_ORDER.forEach(k => {
+  const type = DAY_GUIDE_TYPE[k];
+  PLAN_DEFAULT[k].warmup = WARMUP_TEXTS[type] || '';
+  PLAN_DEFAULT[k].stretch = STRETCH_TEXTS[type] || '';
+});
+
 /* 计划量核算（文档第 10 节：每周训练量概览） */
 /* 运行时计划（可被用户编辑，结构与模板一致） */
 const PLAN = JSON.parse(JSON.stringify(PLAN_DEFAULT));
 
 /* 计划版本：内容修订后 +1，旧手机上的本地计划会随版本升级自动换成新版 */
-const PLAN_VERSION = 6;
+const PLAN_VERSION = 7;
 
 /* 默认计划每周工作组总数（用于复盘折算，计划改动后同步） */
 const PLAN_TOTAL_SETS = 80;
@@ -2482,11 +2513,13 @@ function sanitizePlanExercise(raw) {
 function sanitizePlanDay(raw, fallback) {
   const base = fallback || { name: '恢复日', focus: '恢复', exercises: [] };
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.exercises)) {
-    return { name: base.name, focus: base.focus, exercises: base.exercises.map(e => Object.assign({}, e, { reps: e.reps.slice() })) };
+    return { name: base.name, focus: base.focus, warmup: base.warmup || '', stretch: base.stretch || '', exercises: base.exercises.map(e => Object.assign({}, e, { reps: e.reps.slice() })) };
   }
   return {
     name: safeString(raw.name, 40) || base.name,
     focus: safeString(raw.focus, 40) || base.focus,
+    warmup: safeString(raw.warmup, 2000) || base.warmup || '',
+    stretch: safeString(raw.stretch, 2000) || base.stretch || '',
     exercises: raw.exercises.map(sanitizePlanExercise).filter(Boolean).slice(0, 50)
   };
 }
@@ -3002,6 +3035,8 @@ function defaultPlanData() {
     o[k] = {
       name: PLAN_DEFAULT[k].name,
       focus: PLAN_DEFAULT[k].focus,
+      warmup: PLAN_DEFAULT[k].warmup || '',
+      stretch: PLAN_DEFAULT[k].stretch || '',
       exercises: PLAN_DEFAULT[k].exercises.map(e => Object.assign({}, e, { reps: e.reps.slice() }))
     };
   });
@@ -3023,6 +3058,8 @@ function buildPlan() {
     if (!d) return;
     PLAN[k].name = d.name;
     PLAN[k].focus = d.focus;
+    PLAN[k].warmup = d.warmup || '';
+    PLAN[k].stretch = d.stretch || '';
     PLAN[k].exercises = d.exercises.map(e => Object.assign({}, e, { reps: e.reps.slice() }));
   });
 }
@@ -3685,13 +3722,15 @@ function buildSession(dayKey, dateK) {
     dayKey,
     dayName: plan.name,
     focus: plan.focus,
+    warmup: plan.warmup || '',
+    stretch: plan.stretch || '',
     status: 'in_progress',
     startedAt,
     realStart: Date.now(),
     endedAt: null,
     exIndex: 0,
     setIndex: 0,
-    phase: exercises.length ? 'SetActive' : 'WorkoutComplete',
+    phase: exercises.length ? 'Warmup' : 'WorkoutComplete',
     exercises,
     timer: null,
     backfill: date !== todayKey()
@@ -3943,6 +3982,16 @@ function syncRestButtons() {
 
 /* ---------------- 渲染 ---------------- */
 function currentEx(s) { return s.exercises[s.exIndex]; }
+function renderGuide(title, text, sub) {
+  const lines = String(text || '').split('\n').map(x => x.trim()).filter(Boolean);
+  return '<div class="guide-page fade-in">' +
+    '<div class="guide-eyebrow">' + esc(title) + '</div>' +
+    (sub ? '<div class="guide-sub">' + esc(sub) + '</div>' : '') +
+    '<div class="guide-copy">' + (lines.length
+      ? lines.map((line, i) => '<p' + (i === 0 ? ' class="lead"' : '') + '>' + esc(line) + '</p>').join('')
+      : '<p>按自己的节奏完成热身/拉伸，出现疼痛立即停止。</p>') + '</div>' +
+  '</div>';
+}
 function sessionSetCount(s) {
   return s.exercises.reduce((n, e) => n + e.sets.length, 0);
 }
@@ -3974,7 +4023,13 @@ function renderWorkout() {
 
   let body = '', foot = '';
 
-  if (s.phase === 'WorkoutComplete' || s.status !== 'in_progress') {
+  if (s.phase === 'Warmup') {
+    body = renderGuide('热身建议', s.warmup);
+    foot = '<div class="wk-foot"><button class="btn primary" data-act="warmup-done">热身完成 · 进入正式动作</button></div>';
+  } else if (s.phase === 'Stretch') {
+    body = renderGuide('拉伸建议', s.stretch);
+    foot = '<div class="wk-foot"><button class="btn primary" data-act="stretch-done">拉伸完成 · 训练结束</button></div>';
+  } else if (s.phase === 'WorkoutComplete' || s.status !== 'in_progress') {
     body = renderSummary(s);
     foot = '<div class="wk-foot"><button class="btn primary" data-act="back-home">完成并返回</button></div>';
   } else if (s.phase === 'SetActive' && ex) {
@@ -4018,7 +4073,8 @@ function renderWorkout() {
   }
 
   const centerCls = s.phase === 'ExerciseComplete' ? ' center-content' : '';
-  layer.innerHTML = head + '<div class="wk-scroll' + centerCls + '">' + body + '</div>' + foot;
+  const guideCls = (s.phase === 'Warmup' || s.phase === 'Stretch') ? ' guide-mode' : '';
+  layer.innerHTML = (guideCls ? '' : head) + '<div class="wk-scroll' + centerCls + guideCls + '">' + body + '</div>' + foot;
   if (s.timer) syncTimerDom();
   if (s.phase === 'Resting' || s.phase === 'RestFinished') syncRestButtons();
   bindLogInputs();
@@ -4338,8 +4394,30 @@ function betweenExRest(ex) {
   return Math.max(90, ex.rest || 90);
 }
 
-function completeSet() {
+function finishWarmup() {
   const s = WK.session;
+  if (!s || s.phase !== 'Warmup') return;
+  s.phase = 'SetActive';
+  s.exIndex = 0;
+  s.setIndex = 0;
+  s.timer = null;
+  saveDB(true);
+  renderWorkout();
+}
+
+function finishStretch() {
+  const s = WK.session;
+  if (!s || s.phase !== 'Stretch') return;
+  s.phase = 'WorkoutComplete';
+  s.status = s.status === 'aborted' ? 'aborted' : 'completed';
+  s.endedAt = new Date().toISOString();
+  s.timer = null;
+  stopTick();
+  saveDB(true);
+  renderWorkout();
+}
+
+function completeSet() {  const s = WK.session;
   if (!s || s.phase !== 'SetActive') return;
   primeAudio();
   const ex = currentEx(s);
@@ -4460,9 +4538,7 @@ function nextExercise() {
   const ex = currentEx(s);
   if (ex && ex.status !== 'skipped') ex.status = 'done';
   if (s.exIndex >= s.exercises.length - 1) {
-    s.phase = 'WorkoutComplete';
-    s.status = s.status === 'aborted' ? 'aborted' : 'completed';
-    s.endedAt = new Date().toISOString();
+    s.phase = 'Stretch';
     s.timer = null;
     stopTick();
     saveDB(true);
@@ -4494,9 +4570,9 @@ function skipExercise() {
     s.timer = null;
     stopTick();
     if (s.exIndex >= s.exercises.length - 1) {
-      s.phase = 'WorkoutComplete';
-      s.status = 'completed';
-      s.endedAt = new Date().toISOString();
+      s.phase = 'Stretch';
+      s.timer = null;
+      stopTick();
       saveDB(true);
       renderWorkout();
     } else {
@@ -4929,6 +5005,8 @@ function flashSaved() {
     if (!btn) return;
     const act = btn.dataset.act;
     if (act === 'close') closeWorkoutLayer();
+    else if (act === 'warmup-done') finishWarmup();
+    else if (act === 'stretch-done') finishStretch();
     else if (act === 'complete-set') completeSet();
     else if (act === 'end-rest') endRest();
     else if (act === 'toggle-pause') togglePause();
@@ -5029,9 +5107,11 @@ function renderHome() {
     const doneSets = sessionDoneSets(active);
     const totalSets = sessionSetCount(active);
     let phaseText = '训练进行中';
+    if (active.phase === 'Warmup') phaseText = '热身中 · 准备开始';
     if (active.phase === 'Resting') phaseText = '休息中 · 已完成第 ' + (active.setIndex + 1) + ' 组';
     if (active.phase === 'RestFinished') phaseText = '休息结束，等待开始下一组';
     if (active.phase === 'ExerciseComplete') phaseText = '动作完成，等待进入下一动作';
+    if (active.phase === 'Stretch') phaseText = '正式动作完成 · 拉伸收尾';
     hero =
       '<div class="hero">' +
         '<div class="hero-top">' + icon('bolt') + ' ' + phaseText + '</div>' +
@@ -5654,29 +5734,50 @@ function openBackfillSheet(k0) {
 function openBackfillRecordSheet(dayKey, date) {
   const plan = PLAN[dayKey];
   if (!plan || !plan.exercises.length) { toast('这一天没有计划动作'); return; }
+  const u = unitLabel();
   const rows = plan.exercises.map((pe, i) => {
     const ex = makeExerciseFromPlan(pe);
     if (!ex) return '';
     const mode = exMode(ex.exId);
     const assist = isAssist(ex.exId);
-    const u = unitLabel();
-    const valueLabel = mode === 'time' ? '保持秒数' : mode === 'quality' ? 'RPE（4–10）' : assist ? '辅助重量 (' + u + ')' : '重量 (' + u + ')';
+    const headCols = mode === 'time'
+      ? ['秒数', 'RIR']
+      : mode === 'quality'
+        ? ['RPE', '次数']
+        : [(assist ? '辅助重量 (' : '重量 (') + u + ')', '次数', 'RIR'];
+    const setRows = ex.sets.map((st, si) => {
+      const wField = mode === 'time'
+        ? '<input class="input" data-bf="sec" type="text" inputmode="numeric" placeholder="' + pe.reps[0] + '">'
+        : mode === 'quality'
+          ? '<input class="input" data-bf="rpe" type="text" inputmode="decimal" placeholder="8">'
+          : '<input class="input" data-bf="w" type="text" inputmode="decimal" placeholder="' + u + '">';
+      const rField = mode === 'time'
+        ? '<input class="input" data-bf="rir" type="text" inputmode="numeric" placeholder="RIR">'
+        : mode === 'quality'
+          ? '<input class="input" data-bf="r" type="text" inputmode="numeric" placeholder="' + pe.reps[0] + '–' + pe.reps[1] + '">'
+          : '<input class="input" data-bf="r" type="text" inputmode="numeric" placeholder="' + pe.reps[0] + '–' + pe.reps[1] + '">';
+      const rirField = mode === 'reps' && !assist
+        ? '<input class="input" data-bf="rir" type="text" inputmode="numeric" placeholder="RIR">'
+        : mode === 'reps'
+          ? '<input class="input" data-bf="rir" type="text" inputmode="numeric" placeholder="RIR">'
+          : '';
+      return '<div class="bf-set-row" data-bf-set="' + si + '">' +
+        '<span class="bf-set-no">' + (si + 1) + '</span>' + wField + rField + rirField +
+      '</div>';
+    }).join('');
     return '<div class="bf-ex" data-bf-ex="' + i + '">' +
       '<div class="bf-head"><span class="bf-name">' + esc(ex.name) + '</span>' +
         '<span class="bf-target">计划 ' + ex.sets.length + ' 组 · ' + repRange(pe.reps) + (pe.unit === 'sec' ? ' 秒' : ' 次') + '</span></div>' +
-      '<div class="bf-fields">' +
-        '<label>完成组数<input class="input" data-bf="sets" type="text" inputmode="numeric" value="' + ex.sets.length + '"></label>' +
-        '<label>' + valueLabel + '<input class="input" data-bf="value" type="text" inputmode="decimal" placeholder="' + (mode === 'quality' ? '8' : mode === 'time' ? '30' : '') + '"></label>' +
-        (mode === 'time' ? '' : '<label>次数<input class="input" data-bf="reps" type="text" inputmode="numeric" placeholder="' + pe.reps[0] + '–' + pe.reps[1] + '"></label>') +
-      '</div>' +
+      '<div class="bf-set-head"><span></span>' + headCols.map(x => '<span>' + x + '</span>').join('') + '</div>' +
+      '<div class="bf-set-list">' + setRows + '</div>' +
     '</div>';
   }).join('');
 
-  openSheet({
+  const h = openSheet({
     title: '补记 ' + plan.name + ' · ' + fmtCN(date),
-    desc: '直接录入，不进入训练计时；保存后可在历史里逐组修改',
+    desc: '每一组单独填写；填了任意字段的组算完成，空白组算未做',
     body: '<div class="f12 mut" style="line-height:1.65;margin-bottom:12px">' +
-        '每个动作填一次即可，会应用到该动作完成的组。只记做过的动作，组数填 0 表示没做。' +
+        '按实际训练逐组填写。只填做过的组，没做的组留空；保存后直接进入历史当天。' +
       '</div>' + rows +
       '<div class="f11 mut mt12">补记不会改变计划模板；重量单位按设置中的 ' + unitLabel() + '。</div>',
     actions: [
@@ -5687,40 +5788,53 @@ function openBackfillRecordSheet(dayKey, date) {
           s.backfill = true;
           s.status = 'completed';
           s.phase = 'WorkoutComplete';
+          s.warmup = '';
+          s.stretch = '';
           const base = parseKey(date).getTime() + 19 * 3600e3;
           s.realStart = base;
           s.startedAt = new Date(base).toISOString();
           s.endedAt = new Date(base + 60 * 60e3).toISOString();
           let recorded = 0;
           s.exercises.forEach((ex, i) => {
-            const row = document.querySelector('[data-bf-ex="' + i + '"]');
-            if (!row) { ex.status = 'skipped'; ex.sets.forEach(st => { st.status = 'skipped'; }); return; }
-            const get = name => (row.querySelector('[data-bf="' + name + '"]') || {}).value || '';
-            const n = Math.max(0, Math.min(ex.sets.length, Math.round(Number(get('sets')) || 0)));
-            if (!n) {
-              ex.status = 'skipped';
-              ex.sets.forEach(st => { st.status = 'skipped'; });
-              return;
-            }
-            const rawValue = get('value').trim();
-            const rawReps = get('reps').trim();
+            const box = h.el.querySelector('[data-bf-ex="' + i + '"]');
+            if (!box) { ex.status = 'skipped'; ex.sets.forEach(st => { st.status = 'skipped'; }); return; }
             const mode = exMode(ex.exId);
-            const value = rawValue === '' ? null : (mode === 'time' || mode === 'quality' ? Number(rawValue) : fromUnit(rawValue));
-            const reps = rawReps === '' ? null : Math.max(0, Math.round(Number(rawReps) || 0));
+            const setRows = box.querySelectorAll('[data-bf-set]');
             ex.sets.forEach((st, si) => {
-              if (si >= n) { st.status = 'skipped'; return; }
+              const row = setRows[si];
+              if (!row) { st.status = 'skipped'; return; }
+              const val = name => {
+                const el = row.querySelector('[data-bf="' + name + '"]');
+                return el ? el.value.trim() : '';
+              };
+              const rawW = val(mode === 'time' ? 'sec' : mode === 'quality' ? 'rpe' : 'w');
+              const rawR = val(mode === 'time' ? 'rir' : 'r');
+              const rawRir = mode === 'reps' ? val('rir') : (mode === 'time' ? val('rir') : '');
+              if (rawW === '' && rawR === '' && rawRir === '') {
+                st.status = 'skipped';
+                return;
+              }
               st.status = 'completed';
               st.completedAt = Date.now();
               st.note = '';
-              if (mode === 'time') { st.seconds = value; st.rir = null; }
-              else if (mode === 'quality') { st.rpe = value; st.reps = reps; }
-              else { st.weight = value; st.reps = reps; st.rir = null; }
+              if (mode === 'time') {
+                st.seconds = rawW === '' ? null : Math.max(0, Math.round(Number(rawW) || 0));
+                st.rir = rawRir === '' ? null : Math.max(0, Math.min(10, Number(rawRir) || 0));
+              } else if (mode === 'quality') {
+                st.rpe = rawW === '' ? null : Math.max(0, Math.min(10, Number(rawW) || 0));
+                st.reps = rawR === '' ? null : Math.max(0, Math.round(Number(rawR) || 0));
+              } else {
+                st.weight = rawW === '' ? null : fromUnit(rawW);
+                st.reps = rawR === '' ? null : Math.max(0, Math.round(Number(rawR) || 0));
+                st.rir = rawRir === '' ? null : Math.max(0, Math.min(10, Number(rawRir) || 0));
+              }
               st.dataComplete = setHasData(st, ex.exId);
               recorded++;
             });
-            ex.status = 'done';
+            ex.status = ex.sets.some(st => st.status === 'completed') ? 'done' : 'skipped';
+            if (ex.status === 'skipped') ex.sets.forEach(st => { if (st.status !== 'completed') st.status = 'skipped'; });
           });
-          if (!recorded) { toast('至少填一个动作的完成组数'); return false; }
+          if (!recorded) { toast('至少填一组数据'); return false; }
           DB.sessions.push(s);
           saveDB(true);
           UI.tab = 'history';

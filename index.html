@@ -1382,6 +1382,27 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; min-height:
 .guide-copy p.lead { font-size: 18px; font-weight: 600; line-height: 1.6; margin-bottom: 16px; }
 .guide-copy p:last-child { margin-bottom: 0; }
 
+/* 本地保存失败提示 */
+.storage-alert {
+  position: fixed; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 9999;
+  display: flex; align-items: flex-start; gap: 8px; padding: 11px 12px;
+  border-radius: 12px; background: #8d2e26; color: #fff; font-size: 12px; line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.storage-alert b { flex: 0 0 auto; }
+.storage-alert span { flex: 1; }
+.storage-alert button { width: 24px; height: 24px; border: 0; background: transparent; color: #fff; font-size: 18px; line-height: 1; }
+.choice-dialog .choice-actions { flex-direction: column; }
+.choice-dialog .choice-actions .btn { width: 100%; }
+.guide-head { background: transparent; }
+/* 计划编辑：训练日名称 / 重点 / 热身拉伸 */
+.pe-daymeta { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.pe-daymeta label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.pe-daymeta .input { font-size: 16px; }
+.pe-daymeta textarea.input { min-height: 62px; font-size: 14px; line-height: 1.55; }
+/* iOS 聚焦输入框时 >=16px 才不会自动放大 */
+.input, .field .ctrl input, .bf-set-row .input, .cloud-card .cloud-email .input { font-size: 16px; }
+
 
 </style>
   <script data-page-node-id="656LsAYnBIyvz0AXSIaSiw" data-pnid-children="aiCXPN7cAc9Prh78Gnn4mq">
@@ -2373,6 +2394,42 @@ WEEK_ORDER.forEach(k => {
   PLAN_DEFAULT[k].stretch = STRETCH_TEXTS[type] || '';
 });
 
+/* 热身/拉伸必须跟随“这一天实际练什么”，而不是星期几。
+   计划编辑器允许把整天的训练内容上下移动，因此按当天动作内容重新判断类型。 */
+const GUIDE_LEG_IDS = ['squat', 'rdl', 'deadlift', 'bss', 'legpress', 'hacksquat', 'legext', 'legcurl', 'calfraise', 'seatedcalf', 'hipthrust', 'glute', 'abduct'];
+const GUIDE_PUSH_IDS = ['bench', 'inclinebb', 'inclincedb', 'ohp', 'shoulderpress', 'chestpress', 'dbbench', 'lateral', 'reardelt', 'facerpull', 'pushdown', 'overheadtri', 'dip', 'pushup'];
+const GUIDE_PULL_IDS = ['latpull', 'singlelat', 'pullup', 'assistedpullup', 'tbar', 'chestsupportedrow', 'seatedrow', 'barbellcurl', 'cablecurl', 'machinecurl', 'invertedrow'];
+function guideTypeForPlan(plan) {
+  if (!plan || !Array.isArray(plan.exercises) || !plan.exercises.length) return '';
+  const label = (plan.name || '') + ' ' + (plan.focus || '');
+  if (/拉|背/.test(label)) return 'pull';
+  if (/推|胸|肩/.test(label)) return 'push';
+  if (/腿|下肢|蹲|硬拉/.test(label)) return 'leg';
+  const score = { leg: 0, push: 0, pull: 0 };
+  plan.exercises.forEach(e => {
+    const id = e && e.exId;
+    if (GUIDE_LEG_IDS.indexOf(id) >= 0) score.leg += 1;
+    else if (GUIDE_PUSH_IDS.indexOf(id) >= 0) score.push += 1;
+    else if (GUIDE_PULL_IDS.indexOf(id) >= 0) score.pull += 1;
+    else if (LIB[id]) {
+      const g = LIB[id].group;
+      if (['股四头肌', '腘绳肌', '臀', '小腿'].indexOf(g) >= 0) score.leg += 1;
+      else if (['胸', '肩', '肱三头肌'].indexOf(g) >= 0) score.push += 1;
+      else if (['背', '肱二头肌'].indexOf(g) >= 0) score.pull += 1;
+    }
+  });
+  if (score.leg >= score.push && score.leg >= score.pull) return 'leg';
+  return score.push >= score.pull ? 'push' : 'pull';
+}
+function warmupForPlan(plan) {
+  const type = guideTypeForPlan(plan);
+  return WARMUP_TEXTS[type] || WARMUP_TEXTS.leg;
+}
+function stretchForPlan(plan) {
+  const type = guideTypeForPlan(plan);
+  return STRETCH_TEXTS[type] || STRETCH_TEXTS.leg;
+}
+
 /* 计划量核算（文档第 10 节：每周训练量概览） */
 /* 运行时计划（可被用户编辑，结构与模板一致） */
 const PLAN = JSON.parse(JSON.stringify(PLAN_DEFAULT));
@@ -2381,7 +2438,7 @@ const PLAN = JSON.parse(JSON.stringify(PLAN_DEFAULT));
 const PLAN_VERSION = 7;
 
 /* 默认计划每周工作组总数（用于复盘折算，计划改动后同步） */
-const PLAN_TOTAL_SETS = 80;
+let PLAN_TOTAL_SETS = 80;
 
 const VOLUME_TARGET = [
   { group: '背', value: 13, note: '强度日 7 + 容量日 6 增肌组；另有 2 组引体技术组不计入' },
@@ -2457,6 +2514,11 @@ function safeId(v, prefix) {
   const s = String(v == null ? '' : v);
   return SAFE_ID_RE.test(s) ? s : uid(prefix || 'id');
 }
+function numOrNull(v) {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 function validDateKey(v) {
   const s = String(v == null ? '' : v);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : todayKey();
@@ -2520,6 +2582,8 @@ function sanitizePlanDay(raw, fallback) {
     focus: safeString(raw.focus, 40) || base.focus,
     warmup: safeString(raw.warmup, 2000) || base.warmup || '',
     stretch: safeString(raw.stretch, 2000) || base.stretch || '',
+    warmupCustom: raw.warmupCustom === true,
+    stretchCustom: raw.stretchCustom === true,
     exercises: raw.exercises.map(sanitizePlanExercise).filter(Boolean).slice(0, 50)
   };
 }
@@ -2530,7 +2594,12 @@ function normalizeSession(raw) {
         exId: SAFE_ID_RE.test(safeString(e.exId, 80)) ? safeString(e.exId, 80) : '',
         name: safeString(e.name, 60),
         sets: e.sets.filter(st => st && typeof st === 'object').slice(0, 50).map((st, i) => Object.assign({}, st, {
-          idx: Math.round(clampNumber(st.idx, 0, 100, i))
+          idx: Math.round(clampNumber(st.idx, 0, 100, i)),
+          weight: numOrNull(st.weight),
+          reps: numOrNull(st.reps),
+          rir: numOrNull(st.rir),
+          seconds: numOrNull(st.seconds),
+          rpe: numOrNull(st.rpe)
         }))
       })).filter(e => e.exId).slice(0, 80)
     : [];
@@ -2549,20 +2618,34 @@ function normalizeDB(raw) {
   out.sessions = Array.isArray(clean.sessions) ? clean.sessions.map(normalizeSession).filter(Boolean).slice(0, 5000) : [];
   out.runs = Array.isArray(clean.runs) ? clean.runs.filter(x => x && typeof x === 'object').map(x => Object.assign({}, x, {
     id: safeId(x.id, 'r'),
-    date: validDateKey(x.date)
+    date: validDateKey(x.date),
+    minutes: numOrNull(x.minutes),
+    distance: numOrNull(x.distance),
+    rpe: numOrNull(x.rpe)
   })).slice(0, 5000) : [];
   out.body = Array.isArray(clean.body) ? clean.body.filter(x => x && typeof x === 'object').map(x => Object.assign({}, x, {
     id: safeId(x.id, 'bw'),
-    date: validDateKey(x.date)
+    date: validDateKey(x.date),
+    weight: numOrNull(x.weight),
+    waist: numOrNull(x.waist)
   })).slice(0, 5000) : [];
   out.checkins = Array.isArray(clean.checkins) ? clean.checkins.filter(x => x && typeof x === 'object').map(x => Object.assign({}, x, {
-    date: validDateKey(x.date)
+    date: validDateKey(x.date),
+    sleep: numOrNull(x.sleep),
+    fatigue: numOrNull(x.fatigue),
+    soreness: numOrNull(x.soreness),
+    stress: numOrNull(x.stress)
   })).slice(0, 5000) : [];
   out.customEx = Array.isArray(clean.customEx) ? clean.customEx.filter(x => x && SAFE_ID_RE.test(safeString(x.id, 80)) && x.name).slice(0, 500) : [];
+  out.mainLifts = Array.isArray(clean.mainLifts)
+    ? clean.mainLifts.filter(id => typeof id === 'string' && SAFE_ID_RE.test(id)).slice(0, 4)
+    : [];
   out.settings = sanitizeSettings(clean.settings);
   out.updatedAt = typeof clean.updatedAt === 'string' ? clean.updatedAt : null;
   out.planVer = Number.isFinite(Number(clean.planVer)) ? Number(clean.planVer) : PLAN_VERSION;
   out.planUpdated = clean.planUpdated !== false;
+  out.planCustomized = clean.planCustomized === true;
+  if (clean.planBackup && typeof clean.planBackup === 'object') out.planBackup = clean.planBackup;
   if (clean.plan && typeof clean.plan === 'object') {
     const plan = {};
     WEEK_ORDER.forEach(k => { plan[k] = sanitizePlanDay(clean.plan[k], PLAN_DEFAULT[k]); });
@@ -2573,6 +2656,94 @@ function normalizeDB(raw) {
 function importDBFromBackup(raw) {
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.sessions)) throw new Error('格式不符');
   return normalizeDB(raw);
+}
+
+/* 旧版 FitLog 导出：{app:'fitlog-prototype', data:{sessions:[...]}}。
+   旧动作 id 与新库不同，优先按旧动作名称映射；映射不到的动作用户可在历史里补建。 */
+function migrateOldFitlogBackup(payload) {
+  const state = payload && payload.data && typeof payload.data === 'object' ? payload.data : payload;
+  if (!state || !Array.isArray(state.sessions)) return null;
+  if (!payload || !payload.app || String(payload.app).indexOf('fitlog') < 0) return null;
+  const norm = s => String(s || '').toLowerCase().replace(/[\s\-_/（）()·.．]/g, '');
+  const byName = {};
+  Object.keys(LIB).forEach(id => { byName[norm(LIB[id].name)] = id; });
+  const idAlias = {
+    'lat-pulldown': 'latpull', 'seated-cable-row': 'seatedrow', 'face-pull': 'facerpull',
+    'barbell-bench-press': 'bench', 'incline-barbell-press': 'inclinebb', 'overhead-press': 'ohp',
+    'barbell-squat': 'squat', 'romanian-deadlift': 'rdl', 'dumbbell-bench-press': 'dbbench',
+    'barbell-row': 'tbar', 'pull-up': 'pullup', 'assisted-pull-up': 'assistedpullup',
+    'lateral-raise': 'lateral', 'cable-triceps-pushdown': 'pushdown', 'barbell-curl': 'barbellcurl'
+  };
+  const resolve = (oldEx) => {
+    const id = oldEx && oldEx.exerciseId;
+    if (idAlias[id] && LIB[idAlias[id]]) return idAlias[id];
+    if (LIB[id] && !LIB[id].archived) return id;
+    const name = norm(oldEx && oldEx.exerciseName);
+    return byName[name] || '';
+  };
+  const sessions = [];
+  let skippedExercises = 0;
+  state.sessions.forEach(old => {
+    if (!old || old.status !== 'completed') return;
+    const started = old.startedAt || old.createdAt;
+    const date = String(started || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const exercises = (Array.isArray(old.exercises) ? old.exercises : []).map(oldEx => {
+      const exId = resolve(oldEx);
+      const lib = LIB[exId];
+      if (!lib) { skippedExercises++; return null; }
+      const oldSets = Array.isArray(oldEx.sets) ? oldEx.sets : [];
+      const reps = oldSets.map(s => Number(s.reps)).filter(Number.isFinite);
+      const sets = oldSets.map((s, si) => ({
+        idx: si,
+        status: s.completed === false ? 'skipped' : 'completed',
+        weight: numOrNull(s.weightKg),
+        reps: numOrNull(s.reps),
+        rir: numOrNull(s.rir),
+        rpe: numOrNull(s.rpe),
+        seconds: null,
+        note: safeString(s.note, 300),
+        completedAt: s.completedAt ? Date.parse(s.completedAt) || null : null,
+        extra: false,
+        dataComplete: numOrNull(s.weightKg) != null || numOrNull(s.reps) != null
+      }));
+      return {
+        exId,
+        name: lib.name,
+        gear: lib.gear,
+        group: lib.group,
+        targetSets: sets.length,
+        reps: [reps.length ? Math.min.apply(null, reps) : 8, reps.length ? Math.max.apply(null, reps) : 12],
+        unit: 'rep',
+        rir: '',
+        rest: 90,
+        note: '旧版迁移',
+        planNote: '',
+        originalPlan: lib.name,
+        swappedFrom: null,
+        tech: false,
+        status: sets.some(st => st.status === 'completed') ? 'done' : 'skipped',
+        sets
+      };
+    }).filter(Boolean);
+    if (!exercises.length) return;
+    sessions.push({
+      id: uid('s'),
+      date,
+      dayKey: dayKeyOf(parseKey(date)),
+      dayName: safeString(old.title, 40) || '旧版训练',
+      focus: '旧版迁移',
+      status: 'completed',
+      startedAt: started || new Date().toISOString(),
+      endedAt: old.endedAt || started || new Date().toISOString(),
+      phase: 'WorkoutComplete',
+      backfill: true,
+      legacyImported: true,
+      exercises,
+      timer: null
+    });
+  });
+  return { version: 1, updatedAt: new Date().toISOString(), settings: {}, sessions, runs: [], body: [], checkins: [], customEx: [], legacySkippedExercises: skippedExercises };
 }
 
 /* ---------------- 设置 ---------------- */
@@ -2586,7 +2757,18 @@ const DEFAULT_SETTINGS = {
 };
 
 function emptyDB() {
-  return { version: 1, updatedAt: null, settings: Object.assign({}, DEFAULT_SETTINGS), sessions: [], runs: [], body: [], checkins: [], customEx: [] };
+  return { version: 1, updatedAt: null, settings: Object.assign({}, DEFAULT_SETTINGS), sessions: [], runs: [], body: [], checkins: [], customEx: [], planCustomized: false, planBackup: null, mainLifts: [] };
+}
+const DEFAULT_MAIN_LIFTS = ['bench', 'squat', 'latpull', 'rdl'];
+function mainLiftIds() {
+  const picked = Array.isArray(DB.mainLifts)
+    ? DB.mainLifts.filter(id => typeof id === 'string' && LIB[id] && !LIB[id].archived).slice(0, 4)
+    : [];
+  return picked.length ? picked : DEFAULT_MAIN_LIFTS.filter(id => LIB[id]);
+}
+function hasUserRecords(db) {
+  if (!db) return false;
+  return ['sessions', 'runs', 'body', 'checkins', 'customEx'].some(k => Array.isArray(db[k]) && db[k].length > 0);
 }
 
 let DB = null;
@@ -2604,12 +2786,28 @@ function loadDB() {
         DB.sessions = []; DB.runs = []; DB.body = []; DB.checkins = [];
         saveDB(true);
       }
-      // 计划改版（V2.0 组数精简）：本地旧计划换成新版，历史训练记录不动
+      // 计划改版：不再静默覆盖用户计划。保存旧计划备份，只补齐缺失字段。
       if (parsed.planVer !== PLAN_VERSION) {
-        DB.plan = defaultPlanData();
+        DB.planBackup = {
+          plan: DB.plan ? JSON.parse(JSON.stringify(DB.plan)) : null,
+          planVer: parsed.planVer || null,
+          savedAt: new Date().toISOString()
+        };
+        if (!DB.plan) DB.plan = defaultPlanData();
+        WEEK_ORDER.forEach(k => {
+          if (!DB.plan[k]) DB.plan[k] = defaultPlanData()[k];
+          if (!DB.plan[k].warmup) DB.plan[k].warmup = PLAN_DEFAULT[k].warmup || '';
+          if (!DB.plan[k].stretch) DB.plan[k].stretch = PLAN_DEFAULT[k].stretch || '';
+        });
         DB.planVer = PLAN_VERSION;
         DB.planUpdated = true;
-        saveDB(true);
+        saveDB(true, { preserveTimestamp: true });
+      }
+      // 旧数据没有 planCustomized 标记；与当前默认计划不同则视为用户自定义计划
+      if (DB.plan && !DB.planCustomized) {
+        try {
+          if (JSON.stringify(DB.plan) !== JSON.stringify(defaultPlanData())) DB.planCustomized = true;
+        } catch (e) {}
       }
       return;
     }
@@ -2720,14 +2918,17 @@ function archiveCustomExercise(id) {
 }
 
 let saveTimer = null;
-function saveDB(immediate) {  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  DB.updatedAt = new Date().toISOString();
+function saveDB(immediate, opts) {  opts = opts || {};  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  if (!opts.preserveTimestamp) DB.updatedAt = new Date().toISOString();
   const write = () => {
     try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
-    catch (e) { console.warn('保存失败', e); }
+    catch (e) {
+      console.warn('保存失败', e);
+      if (typeof showStorageError === 'function') showStorageError();
+    }
   };
   if (immediate) write(); else saveTimer = setTimeout(write, 120);
-  if (typeof cloudAfterLocalSave === 'function') cloudAfterLocalSave();
+  if (!opts.preserveTimestamp && typeof cloudAfterLocalSave === 'function') cloudAfterLocalSave();
 }
 
 /* ---------------- 会话查询 ---------------- */
@@ -3053,6 +3254,7 @@ function ensurePlanData() {
 function buildPlan() {
   const data = DB.plan;
   if (!data) return;
+  let total = 0;
   WEEK_ORDER.forEach(k => {
     const d = data[k];
     if (!d) return;
@@ -3060,18 +3262,25 @@ function buildPlan() {
     PLAN[k].focus = d.focus;
     PLAN[k].warmup = d.warmup || '';
     PLAN[k].stretch = d.stretch || '';
+    PLAN[k].warmupCustom = d.warmupCustom === true;
+    PLAN[k].stretchCustom = d.stretchCustom === true;
     PLAN[k].exercises = d.exercises.map(e => Object.assign({}, e, { reps: e.reps.slice() }));
+    total += PLAN[k].exercises.reduce((n, e) => n + Number(e.sets || 0), 0);
   });
+  PLAN_TOTAL_SETS = total;
 }
 
 function savePlan() {
+  DB.planCustomized = true;
   buildPlan();
   saveDB(true);
 }
 
 function resetPlan() {
+  DB.planBackup = DB.plan ? { plan: JSON.parse(JSON.stringify(DB.plan)), planVer: DB.planVer, savedAt: new Date().toISOString() } : DB.planBackup;
   DB.plan = defaultPlanData();
   DB.planVer = PLAN_VERSION;
+  DB.planCustomized = false;
   buildPlan();
   saveDB(true);
 }
@@ -3345,7 +3554,7 @@ function confirmDialog(o) {
       '</div>';
   document.getElementById('sheet-root').appendChild(mask);
     requestAnimationFrame(() => mask.classList.add('on'));
-    const onKey = e => { if (e.key === 'Escape') done(false); };
+    const onKey = e => { if (e.key === 'Escape') done(null); };
     document.addEventListener('keydown', onKey);
     const done = v => {
       mask.classList.remove('on');
@@ -3355,8 +3564,52 @@ function confirmDialog(o) {
     };
     mask.querySelector('[data-x="0"]').onclick = () => done(false);
     mask.querySelector('[data-x="1"]').onclick = () => done(true);
-    mask.addEventListener('click', e => { if (e.target === mask) done(false); });
+    mask.addEventListener('click', e => { if (e.target === mask) done(null); });
   });
+}
+
+/* 三选一对话框：点击遮罩 / ESC 返回 null，表示“取消且什么都不做”。
+   用于“有一次未完成的训练”这类需要区分「继续 / 取消 / 放弃」的场景。 */
+function choiceDialog(o) {
+  return new Promise(resolve => {
+    const actions = o.actions || [];
+    const mask = document.createElement('div');
+    mask.className = 'sheet-mask';
+    mask.style.alignItems = 'center';
+    mask.innerHTML =
+      '<div class="dialog choice-dialog">' +
+        '<h3>' + esc(o.title) + '</h3>' +
+        '<p>' + esc(o.desc || '') + '</p>' +
+        '<div class="sheet-actions choice-actions">' +
+          actions.map((a, i) => '<button class="btn ' + (a.cls || 'ghost') + '" data-choice="' + i + '">' + esc(a.label) + '</button>').join('') +
+        '</div>' +
+      '</div>';
+    document.getElementById('sheet-root').appendChild(mask);
+    requestAnimationFrame(() => mask.classList.add('on'));
+    const done = value => {
+      mask.classList.remove('on');
+      document.removeEventListener('keydown', onKey);
+      setTimeout(() => mask.remove(), 220);
+      resolve(value);
+    };
+    const onKey = e => { if (e.key === 'Escape') done(null); };
+    document.addEventListener('keydown', onKey);
+    mask.querySelectorAll('[data-choice]').forEach(btn => {
+      btn.onclick = () => done(actions[Number(btn.dataset.choice)].value);
+    });
+    mask.addEventListener('click', e => { if (e.target === mask) done(null); });
+  });
+}
+
+function showStorageError() {
+  if (document.getElementById('storage-alert')) return;
+  const el = document.createElement('div');
+  el.id = 'storage-alert';
+  el.className = 'storage-alert';
+  el.innerHTML = '<b>数据未保存</b><span>浏览器本地存储失败（可能已满或处于隐私模式）。请立即到「设置 → 导出 JSON」备份，然后清理空间或换浏览器。</span>' +
+    '<button type="button" aria-label="关闭提示">×</button>';
+  el.querySelector('button').onclick = () => el.remove();
+  document.body.appendChild(el);
 }
 
 /* ---------------- 声音 / 振动 ----------------
@@ -3704,8 +3957,15 @@ const WK = {
   session: null,
   tick: null,
   lastBeepSec: -1,
-  wakeLock: null
+  wakeLock: null,
+  lockUntil: 0
 };
+function wkLocked() {
+  return Date.now() < (WK.lockUntil || 0);
+}
+function wkLock(ms) {
+  WK.lockUntil = Date.now() + (ms || 600);
+}
 
 /* ---------------- 创建训练 ---------------- */
 /* dateKey 可选：用于「补记」某一天的训练，缺省为今天 */
@@ -3722,8 +3982,8 @@ function buildSession(dayKey, dateK) {
     dayKey,
     dayName: plan.name,
     focus: plan.focus,
-    warmup: plan.warmup || '',
-    stretch: plan.stretch || '',
+    warmup: plan.warmupCustom ? (plan.warmup || '') : (typeof warmupForPlan === 'function' ? warmupForPlan(plan) : (plan.warmup || '')),
+    stretch: plan.stretchCustom ? (plan.stretch || '') : (typeof stretchForPlan === 'function' ? stretchForPlan(plan) : (plan.stretch || '')),
     status: 'in_progress',
     startedAt,
     realStart: Date.now(),
@@ -3785,13 +4045,17 @@ function startWorkout(dayKey, opts) {
   primeAudio();
   const existing = activeSession();
   if (existing) {
-    confirmDialog({
+    choiceDialog({
       title: '有一次未完成的训练',
       desc: fmtCN(existing.date) + ' · ' + existing.dayName + '，已完成 ' + sessionDoneSets(existing) + ' 组。要先完成它吗？',
-      confirmText: '继续那次训练',
-      cancelText: '放弃并开始新的'
-    }).then(ok => {
-      if (ok) { openWorkout(existing.id); return; }
+      actions: [
+        { label: '继续那次训练', value: 'continue', cls: 'primary' },
+        { label: '取消', value: 'cancel', cls: 'ghost' },
+        { label: '放弃并开始新的', value: 'abort', cls: 'danger' }
+      ]
+    }).then(choice => {
+      if (choice === 'continue') { openWorkout(existing.id); return; }
+      if (choice !== 'abort') return;
       existing.status = 'aborted';
       existing.endedAt = new Date().toISOString();
       existing.timer = null;
@@ -4011,8 +4275,13 @@ function renderWorkout() {
   const totalSets = sessionSetCount(s);
 
   const atEnd = s.phase === 'WorkoutComplete' || s.status !== 'in_progress';
-  let head =
-    '<div class="wk-head">' +
+  const isGuide = s.phase === 'Warmup' || s.phase === 'Stretch';
+  let head = isGuide
+    ? '<div class="wk-head guide-head">' +
+        '<div class="grow"></div>' +
+        '<button class="icon-btn" data-act="close" aria-label="收起">' + icon('chevDown') + '</button>' +
+      '</div>'
+    : '<div class="wk-head">' +
       '<button class="icon-btn" data-act="close" aria-label="收起">' + icon('chevDown') + '</button>' +
       '<div class="grow">' +
         '<div class="k">' + esc(s.dayName) + (s.backfill ? ' · 补记 ' + fmtShort(s.date) : '') + (ex && !atEnd ? ' · 第 ' + (s.exIndex + 1) + '/' + totalEx + ' 个动作' : '') + '</div>' +
@@ -4025,10 +4294,14 @@ function renderWorkout() {
 
   if (s.phase === 'Warmup') {
     body = renderGuide('热身建议', s.warmup);
-    foot = '<div class="wk-foot"><button class="btn primary" data-act="warmup-done">热身完成 · 进入正式动作</button></div>';
+    foot = '<div class="wk-foot">' +
+      '<button class="btn primary" data-act="warmup-done">热身完成 · 进入正式动作</button>' +
+      '<div class="wk-sub"><button data-act="skip-warmup">跳过热身</button></div></div>';
   } else if (s.phase === 'Stretch') {
     body = renderGuide('拉伸建议', s.stretch);
-    foot = '<div class="wk-foot"><button class="btn primary" data-act="stretch-done">拉伸完成 · 训练结束</button></div>';
+    foot = '<div class="wk-foot">' +
+      '<button class="btn primary" data-act="stretch-done">拉伸完成 · 训练结束</button>' +
+      '<div class="wk-sub"><button data-act="skip-stretch">跳过拉伸</button></div></div>';
   } else if (s.phase === 'WorkoutComplete' || s.status !== 'in_progress') {
     body = renderSummary(s);
     foot = '<div class="wk-foot"><button class="btn primary" data-act="back-home">完成并返回</button></div>';
@@ -4073,8 +4346,8 @@ function renderWorkout() {
   }
 
   const centerCls = s.phase === 'ExerciseComplete' ? ' center-content' : '';
-  const guideCls = (s.phase === 'Warmup' || s.phase === 'Stretch') ? ' guide-mode' : '';
-  layer.innerHTML = (guideCls ? '' : head) + '<div class="wk-scroll' + centerCls + guideCls + '">' + body + '</div>' + foot;
+  const guideCls = isGuide ? ' guide-mode' : '';
+  layer.innerHTML = head + '<div class="wk-scroll' + centerCls + guideCls + '">' + body + '</div>' + foot;
   if (s.timer) syncTimerDom();
   if (s.phase === 'Resting' || s.phase === 'RestFinished') syncRestButtons();
   bindLogInputs();
@@ -4238,10 +4511,10 @@ function rirChips(st) {
 }
 
 function fieldStepper(key, label, val, step, mode) {
-  return '<div class="field"><label>' + label + '</label>' +
+  return '<div class="field"><label>' + esc(label) + '</label>' +
     '<div class="ctrl">' +
       '<button data-step="' + key + '" data-dir="-1">−</button>' +
-      '<input data-log-field="' + key + '" type="text" inputmode="' + mode + '" value="' + (val === '' ? '' : val) + '" placeholder="—">' +
+      '<input data-log-field="' + key + '" type="text" inputmode="' + mode + '" value="' + esc(val === '' ? '' : val) + '" placeholder="—">' +
       '<button data-step="' + key + '" data-dir="1">+</button>' +
     '</div></div>';
 }
@@ -4312,6 +4585,8 @@ function renderSummary(s) {
   const doneEx = s.exercises.filter(e => e.status === 'done').length;
   const skipped = s.exercises.filter(e => e.status === 'skipped').length;
   const prs = sessionPRs(s);
+  const missingData = s.exercises.reduce((n, ex) =>
+    n + ex.sets.filter(st => st.status === 'completed' && !setHasData(st, ex.exId)).length, 0);
   const prev = prevSameDaySession(s);
   const nextDay = nextTrainingDay(s.date);
 
@@ -4326,6 +4601,7 @@ function renderSummary(s) {
       '<div><div class="v">' + done + '<span class="f12 mut"> / ' + total + '</span></div><div class="k">完成组数</div></div>' +
       '<div><div class="v">' + (vol > 0 ? fmtVol(vol) : '—') + '</div><div class="k">总容量</div></div>' +
     '</div>' +
+    (missingData ? '<div class="cmp-note">' + icon('info') + '<span>本次有 ' + missingData + ' 组已点完成但未填重量/次数，不计入有效容量；可在历史里补录。</span></div>' : '') +
     (prs.length
       ? '<div class="pr-card fade-in"><div class="pr-head">' + icon('flame') + ' 新纪录</div>' +
         prs.map(pr => '<div class="pr-line"><span class="nm">' + esc(pr.name) + '</span>' +
@@ -4396,7 +4672,8 @@ function betweenExRest(ex) {
 
 function finishWarmup() {
   const s = WK.session;
-  if (!s || s.phase !== 'Warmup') return;
+  if (!s || s.phase !== 'Warmup' || wkLocked()) return;
+  wkLock(650);
   s.phase = 'SetActive';
   s.exIndex = 0;
   s.setIndex = 0;
@@ -4407,7 +4684,8 @@ function finishWarmup() {
 
 function finishStretch() {
   const s = WK.session;
-  if (!s || s.phase !== 'Stretch') return;
+  if (!s || s.phase !== 'Stretch' || wkLocked()) return;
+  wkLock(800);
   s.phase = 'WorkoutComplete';
   s.status = s.status === 'aborted' ? 'aborted' : 'completed';
   s.endedAt = new Date().toISOString();
@@ -4418,7 +4696,8 @@ function finishStretch() {
 }
 
 function completeSet() {  const s = WK.session;
-  if (!s || s.phase !== 'SetActive') return;
+  if (!s || s.phase !== 'SetActive' || wkLocked()) return;
+  wkLock(650);
   primeAudio();
   const ex = currentEx(s);
   const st = ex.sets[s.setIndex];
@@ -4449,7 +4728,25 @@ function completeSet() {  const s = WK.session;
 
 function endRest() {
   const s = WK.session;
-  if (!s || (s.phase !== 'Resting' && s.phase !== 'RestFinished')) return;
+  if (!s || (s.phase !== 'Resting' && s.phase !== 'RestFinished') || wkLocked()) return;
+  const ex = currentEx(s);
+  const st = ex && ex.sets[s.setIndex];
+  if (st && st.status === 'completed' && !setHasData(st, ex.exId)) {
+    confirmDialog({
+      title: '这一组还没填数据',
+      desc: '重量/次数为空，仍然结束休息吗？可以回去补录；不补录的话这组只算完成、不产生有效容量。',
+      confirmText: '仍然结束休息',
+      cancelText: '回去补录'
+    }).then(ok => {
+      if (ok) { wkLock(550); performEndRest(s); }
+    });
+    return;
+  }
+  wkLock(550);
+  performEndRest(s);
+}
+
+function performEndRest(s) {
   stopTick();
   if (s.restKind === 'exercise') {
     // 动作间休息结束：进入下一动作，最后一个动作则完成训练
@@ -5005,8 +5302,8 @@ function flashSaved() {
     if (!btn) return;
     const act = btn.dataset.act;
     if (act === 'close') closeWorkoutLayer();
-    else if (act === 'warmup-done') finishWarmup();
-    else if (act === 'stretch-done') finishStretch();
+    else if (act === 'warmup-done' || act === 'skip-warmup') finishWarmup();
+    else if (act === 'stretch-done' || act === 'skip-stretch') finishStretch();
     else if (act === 'complete-set') completeSet();
     else if (act === 'end-rest') endRest();
     else if (act === 'toggle-pause') togglePause();
@@ -5095,6 +5392,7 @@ function renderHome() {
   const today = todayKey();
   const dk = dayKeyOf(parseKey(today));
   const plan = PLAN[dk];
+  const trainingDays = WEEK_ORDER.filter(k => PLAN[k] && PLAN[k].exercises.length).length;
   const active = activeSession();
   const todayDone = sessionsOn(today).filter(s => s.status === 'completed');
   const isRest = plan.exercises.length === 0;
@@ -5209,7 +5507,7 @@ function renderHome() {
     '<div class="card" style="padding:14px 14px 12px">' +
       '<div class="flex between aic" style="margin-bottom:4px">' +
         '<span class="f12 mut">本周安排</span>' +
-        '<span class="f12 mut">已完成 ' + weekDoneSessions() + ' / 6</span>' +
+        '<span class="f12 mut">已完成 ' + weekDoneSessions() + ' / ' + trainingDays + '</span>' +
       '</div>' + strip +
     '</div>' +
     list +
@@ -5321,9 +5619,9 @@ function renderBodyCard(k) {
 }
 
 function bdField(id, label, val, mode, ph) {
-  return '<div class="field"><label>' + label + '</label><div class="ctrl">' +
-    '<input id="' + id + '" type="text" inputmode="' + (mode || 'decimal') + '" placeholder="' + (ph || '—') + '" value="' +
-    (val == null ? '' : val) + '"></div></div>';
+  return '<div class="field"><label>' + esc(label) + '</label><div class="ctrl">' +
+    '<input id="' + esc(id) + '" type="text" inputmode="' + (mode || 'decimal') + '" placeholder="' + esc(ph || '—') + '" value="' +
+    esc(val == null ? '' : val) + '"></div></div>';
 }
 
 function openBodySheet(k) {
@@ -5850,6 +6148,16 @@ function openBackfillRecordSheet(dayKey, date) {
   });
 }
 
+/* 首页最近训练：跳到历史里对应日期，而不是调用不存在的函数 */
+function openSessionDetail(id) {
+  const s = sessionById(id);
+  if (!s) return;
+  UI.tab = 'history';
+  UI.selectedDate = s.date;
+  UI.historyMonth = parseKey(s.date);
+  renderCurrentTab();
+}
+
 /* 修改已保存训练的日期 */
 function openSessionSheet(id) {
   const s = sessionById(id);
@@ -5923,6 +6231,8 @@ function dataWeeks(weeks) {
 function renderStats() {
   const weeks = weeksRange(UI.statsWeeks);
   const cur = weeks[weeks.length - 1];
+  const mainIds = mainLiftIds();
+  const activeLift = mainIds.indexOf(UI.liftTab) >= 0 ? UI.liftTab : (mainIds[0] || 'bench');
   const sessions = weekSessions(cur.start, cur.end).filter(s => s.status !== 'in_progress');
   const doneSets = sessions.reduce((n, s) => n + sessionDoneSets(s), 0);
   const plannedSets = weekPlannedSets(cur);
@@ -5960,7 +6270,7 @@ function renderStats() {
       statCard('训练次数', sessions.filter(s => s.status === 'completed').length + '<small>次</small>',
         '全周 ' + WEEK_ORDER.filter(k => PLAN[k] && PLAN[k].exercises.length).length + ' 次', '') +
       statCard('跑步', runMin + '<small>分钟</small>', runKm > 0 ? runKm.toFixed(1) + ' km · 独立统计' : '暂无距离记录', '') +
-      statCard('体重', latestW != null ? latestW + '<small>kg</small>' : '—', wDelta != null ? (wDelta >= 0 ? '+' : '') + wDelta + ' kg / 近 ' + UI.statsWeeks + ' 周' : '无记录', wDelta > 0 ? 'up' : '') +
+      statCard('体重', latestW != null ? esc(latestW) + '<small>kg</small>' : '—', wDelta != null ? (wDelta >= 0 ? '+' : '') + wDelta + ' kg / 近 ' + UI.statsWeeks + ' 周' : '无记录', wDelta > 0 ? 'up' : '') +
     '</div>' +
 
     chartCard('体重趋势', 'kg', bodyPts.length ? lineChart({
@@ -5979,10 +6289,10 @@ function renderStats() {
     '<div class="card">' +
       '<div class="card-title" style="margin-bottom:10px"><h2>主项表现</h2><span class="hint">按日期</span></div>' +
       '<div class="segmented block" style="margin-bottom:12px">' +
-        [['bench', '卧推'], ['squat', '深蹲'], ['latpull', '高位下拉'], ['rdl', '硬拉']].map(t =>
-          '<button data-lift="' + t[0] + '" class="' + (UI.liftTab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') +
+        mainIds.map(id =>
+          '<button data-lift="' + id + '" class="' + (activeLift === id ? 'on' : '') + '">' + esc(LIB[id] ? LIB[id].name : id) + '</button>').join('') +
       '</div>' +
-      renderLiftChart(UI.liftTab) +
+      renderLiftChart(activeLift) +
     '</div>' +
 
     '<div class="card">' +
@@ -6025,7 +6335,7 @@ function renderCheckinList() {
   return '<div class="ck-list">' + list.map(c => {
     const b = bodyOn(c.date) || {};
     const parts = [];
-    if (b.weight != null) parts.push('<b>' + b.weight + ' kg</b>');
+    if (b.weight != null) parts.push('<b>' + esc(b.weight) + ' kg</b>');
     if (b.waist != null) parts.push('腰围 ' + b.waist);
     if (c.sleep != null) parts.push('睡眠 ' + c.sleep + 'h');
     if (c.fatigue != null) parts.push('疲劳 ' + c.fatigue + '/5');
@@ -6078,8 +6388,7 @@ function liftPoints(exId) {
 }
 
 function renderLiftChart(tab) {
-  const map = { bench: 'bench', squat: 'squat', latpull: 'latpull', rdl: 'rdl' };
-  const exId = map[tab] || 'bench';
+  const exId = (LIB[tab] && !LIB[tab].archived) ? tab : (mainLiftIds()[0] || 'bench');
   const pts = liftPoints(exId);
   if (pts.length < 2) return emptyBlock('「' + LIB[exId].name + '」记录不足 2 次', 'chart');
   const best = pts.reduce((a, b) => (b.y > a.y ? b : a));
@@ -6189,7 +6498,7 @@ function buildReview(week) {
   }
 
   // 关键动作
-  const lifts = [['bench', '卧推'], ['squat', '深蹲'], ['latpull', '高位下拉'], ['rdl', '硬拉']];
+  const lifts = mainLiftIds().map(id => [id, LIB[id] ? LIB[id].name : id]);
   const parts = [];
   lifts.forEach(([id, name]) => {
     const pts = liftPoints(id).filter(p => p.x >= week.start && p.x <= week.end);
@@ -6201,7 +6510,7 @@ function buildReview(week) {
       const diff = Math.round((best.y - prev.y) * 10) / 10;
       trend = diff > 0 ? '（+' + diff + '）' : diff < 0 ? '（' + diff + '）' : '（持平）';
     }
-    parts.push(name + ' ' + (id === 'pullup' ? best.y + ' 次' : fmtW(best.y)) + trend);
+    parts.push(name + ' ' + (LIB[id] && LIB[id].load === 'body' ? best.y + ' 次' : fmtW(best.y)) + trend);
   });
   items.push({
     t: '主项表现', b: parts.join('，') + '。双重进阶：所有工作组达到次数上限且 RIR 达标后再加重量。',
@@ -6637,6 +6946,9 @@ function renderSettings() {
       '<div class="setrow"><div class="grow"><div class="t">编辑训练计划</div>' +
         '<div class="s">修改动作、组数、次数、组间休息与训练日顺序</div></div>' +
         '<button class="btn sm" data-edit-plan="1">编辑</button></div>' +
+      '<div class="setrow"><div class="grow"><div class="t">主项表现</div>' +
+        '<div class="s">选择最多 4 个动作，用于数据页的主项趋势</div></div>' +
+        '<button class="btn sm" data-main-lifts="1">选择</button></div>' +
     '</div>' +
 
     '<div class="card">' +
@@ -6659,8 +6971,8 @@ function renderSettings() {
     '<div class="card">' +
       '<div class="card-title"><h2>关于</h2></div>' +
       '<div class="f12 mut" style="line-height:1.8">' +
-        '个人训练计划与健身 App · 本地版（计划 V2.0）<br>' +
-        '数据保存在本机浏览器 localStorage，不上传服务器。<br>' +
+        '个人训练计划与健身 App · 本地优先（计划 V2.0）<br>' +
+        '默认数据保存在本机浏览器；登录云端同步后，训练数据会保存到你的 Supabase 账号。未登录时不上传服务器。<br>' +
         '营养参考（起始值）：' + NUTRITION.kcal + ' kcal · 蛋白 ' + NUTRITION.protein + ' g · 脂肪 ' + NUTRITION.fat + ' g · 碳水 ' + NUTRITION.carb + ' g；' + NUTRITION.note + '。<br>' +
         '本工具不是医疗处方。开始训练前应确认无未评估的关节/肌腱损伤、心血管问题或医生限制；出现锐痛、胸痛、异常气促或晕厥应停止并寻求专业评估。' +
       '</div>' +
@@ -6675,8 +6987,48 @@ function rowSwitch(title, sub, on, act) {
     '<button class="switch ' + (on ? 'on' : '') + '" data-act="' + act + '" aria-label="' + title + '"></button></div>';
 }
 
+function openMainLiftSheet() {
+  let selected = mainLiftIds().slice();
+  const pool = Object.keys(LIB)
+    .filter(id => !LIB[id].archived && !LIB[id].custom)
+    .concat(Object.keys(LIB).filter(id => LIB[id].custom && !LIB[id].archived))
+    .sort((a, b) => String(LIB[a].name).localeCompare(String(LIB[b].name), 'zh-CN'));
+  const chips = pool.map(id => '<button data-ml="' + id + '" class="' + (selected.indexOf(id) >= 0 ? 'on' : '') + '">' +
+    esc(LIB[id].name) + '</button>').join('');
+  openSheet({
+    title: '选择主项动作',
+    desc: '最多选 4 个，数据页按它们显示趋势；不选则回到默认卧推/深蹲/高位下拉/硬拉',
+    body: '<div class="f12 mut" style="margin-bottom:10px">已选 <b id="ml-count">' + selected.length + '</b> / 4</div>' +
+      '<div class="chiprow wrap" id="ml-pool">' + chips + '</div>',
+    actions: [
+      { label: '取消', cls: 'ghost' },
+      {
+        label: '保存', cls: 'primary', onClick: () => {
+          if (!selected.length) { toast('至少选一个主项'); return false; }
+          DB.mainLifts = selected.slice(0, 4);
+          saveDB(true);
+          renderCurrentTab();
+          toast('主项已更新');
+        }
+      }
+    ],
+    onMount: (mask) => {
+      mask.querySelectorAll('[data-ml]').forEach(b => b.onclick = () => {
+        const id = b.dataset.ml;
+        if (selected.indexOf(id) >= 0) selected = selected.filter(x => x !== id);
+        else if (selected.length >= 4) { toast('最多选 4 个主项'); return; }
+        else selected = selected.concat(id);
+        b.classList.toggle('on', selected.indexOf(id) >= 0);
+        const c = mask.querySelector('#ml-count'); if (c) c.textContent = selected.length;
+      });
+    }
+  });
+}
+
 function bindSettings() {
   if (typeof bindCloudSettings === 'function') bindCloudSettings();
+  const mainBtn = $('[data-main-lifts]');
+  if (mainBtn) mainBtn.onclick = openMainLiftSheet;
   const t = (act, fn) => { const b = $('[data-act="' + act + '"]'); if (b) b.onclick = fn; };
   t('toggle-unit', () => {
     DB.settings.unit = DB.settings.unit === 'kg' ? 'lb' : 'kg';
@@ -6712,26 +7064,39 @@ function bindSettings() {
       const f = file.files[0];
       if (!f) return;
       const reader = new FileReader();
-      reader.onload = () => {
+          reader.onload = () => {
         try {
           if (typeof reader.result !== 'string' || reader.result.length > 10 * 1024 * 1024) throw new Error('文件过大或无法读取');
           const data = JSON.parse(reader.result);
-          if (!data || !Array.isArray(data.sessions)) throw new Error('格式不符');
-          const normalized = importDBFromBackup(data);
+          const legacy = migrateOldFitlogBackup(data);
+          let normalized;
+          if (legacy && legacy.sessions.length) {
+            normalized = importDBFromBackup(legacy);
+          } else {
+            if (!data || !Array.isArray(data.sessions)) throw new Error('格式不符');
+            normalized = importDBFromBackup(data);
+          }
+          const legacyNote = legacy && legacy.sessions.length
+            ? '（检测到旧版 FitLog 备份，已迁移 ' + normalized.sessions.length + ' 次训练' +
+              (legacy.legacySkippedExercises ? '，' + legacy.legacySkippedExercises + ' 个旧动作未匹配、已跳过' : '') + '）'
+            : '';
           confirmDialog({
             title: '导入并覆盖当前数据？',
-            desc: '将用备份文件中的 ' + normalized.sessions.length + ' 条训练记录替换现有数据。',
+            desc: '将用备份文件中的 ' + normalized.sessions.length + ' 条训练记录替换现有数据。' + legacyNote +
+              ' 导入会先保存当前本地备份；登录状态下会暂停自动云同步，避免立即覆盖云端。',
             confirmText: '导入', danger: true
           }).then(ok => {
             if (!ok) return;
+            try { localStorage.setItem('ft_import_backup_v1', JSON.stringify({ at: new Date().toISOString(), db: DB })); } catch (e) {}
             DB = normalized;
             if (!Array.isArray(DB.customEx)) DB.customEx = [];
             registerCustomExercises();
             ensurePlanData();
             buildPlan();
-            saveDB(true);
+            saveDB(true, { preserveTimestamp: false });
+            if (typeof cloudSetMeta === 'function') cloudSetMeta({ paused: true });
             renderCurrentTab();
-            toast('导入完成');
+            toast('导入完成；自动云同步已暂停，确认后可到设置恢复');
           });
         } catch (e) { toast('文件无法解析：' + e.message); }
       };
@@ -6745,18 +7110,20 @@ function bindSettings() {
 
   const wipe = $('[data-wipe]');
   if (wipe) wipe.onclick = () => confirmDialog({
-    title: '清空全部数据？', desc: '所有训练、跑步与体重记录都会被删除，且无法恢复。建议先导出 JSON 备份。',
+    title: '清空全部数据？', desc: '所有训练、跑步与体重记录都会被删除，且无法恢复。建议先导出 JSON 备份。清空后会自动暂停云同步，避免云端数据立刻被拉回。',
     confirmText: '确认清空', danger: true
   }).then(ok => {
     if (!ok) return;
     confirmDialog({ title: '再次确认', desc: '这是不可撤销的操作。', confirmText: '我确定', danger: true }).then(ok2 => {
       if (!ok2) return;
+      try { localStorage.setItem('ft_wipe_backup_v1', JSON.stringify({ at: new Date().toISOString(), db: DB })); } catch (e) {}
       DB = emptyDB();
       ensurePlanData();
       buildPlan();
       saveDB(true);
+      if (typeof cloudSetMeta === 'function') cloudSetMeta({ paused: true });
       renderCurrentTab();
-      toast('已清空');
+      toast('已清空；自动云同步已暂停');
     });
   });
 }
@@ -6893,9 +7260,9 @@ function openPlanEditor(startDay) {
       const j = b.dataset.mv === 'up' ? i - 1 : i + 1;
       if (j < 0 || j > 6) return;
       const a = data[k], c = data[WEEK_ORDER[j]];
-      const tmp = { name: a.name, focus: a.focus, exercises: a.exercises };
-      a.name = c.name; a.focus = c.focus; a.exercises = c.exercises;
-      c.name = tmp.name; c.focus = tmp.focus; c.exercises = tmp.exercises;
+      const tmp = { name: a.name, focus: a.focus, warmup: a.warmup, stretch: a.stretch, exercises: a.exercises };
+      a.name = c.name; a.focus = c.focus; a.warmup = c.warmup; a.stretch = c.stretch; a.exercises = c.exercises;
+      c.name = tmp.name; c.focus = tmp.focus; c.warmup = tmp.warmup; c.stretch = tmp.stretch; c.exercises = tmp.exercises;
       savePlan();
       paint();
       vibrate(15);
@@ -6914,6 +7281,12 @@ function openPlanEditor(startDay) {
       '<div class="flex between aic" style="margin-bottom:8px">' +
         '<div class="f13" style="font-weight:650">' + esc(d.name || PLAN[dayKey].name) + '</div>' +
         '<span class="f11 mut">' + d.exercises.length + ' 个动作 · ' + totalSets + ' 组</span>' +
+      '</div>' +
+      '<div class="pe-daymeta">' +
+        '<label>训练日名称<input class="input" id="pe-name" value="' + esc(d.name || '') + '"></label>' +
+        '<label>重点<textarea class="input" id="pe-focus" rows="2">' + esc(d.focus || '') + '</textarea></label>' +
+        '<label>热身建议（留空使用按动作自动推荐）<textarea class="input" id="pe-warmup" rows="3">' + esc(d.warmup || '') + '</textarea></label>' +
+        '<label>拉伸建议（留空使用按动作自动推荐）<textarea class="input" id="pe-stretch" rows="3">' + esc(d.stretch || '') + '</textarea></label>' +
       '</div>' +
       (d.exercises.length
         ? d.exercises.map((e, i) => {
@@ -6941,6 +7314,21 @@ function openPlanEditor(startDay) {
       '<div class="note mt12">' + icon('info') + '<span>次数上下限、组间休息会写入之后新建的训练；正在进行中的训练不受影响。删除动作不会删掉历史记录。</span></div>';
 
     box.querySelector('[data-back]').onclick = () => { mode = 'list'; paint(); };
+    const bindMeta = (id, field, customField) => {
+      const el = box.querySelector('#' + id);
+      if (!el) return;
+      el.onchange = () => {
+        d[field] = el.value.trim();
+        if (customField) d[customField] = !!d[field];
+        savePlan();
+        if (field === 'name' || field === 'focus') paint();
+        toast('已保存训练日设置');
+      };
+    };
+    bindMeta('pe-name', 'name');
+    bindMeta('pe-focus', 'focus');
+    bindMeta('pe-warmup', 'warmup', 'warmupCustom');
+    bindMeta('pe-stretch', 'stretch', 'stretchCustom');
     box.querySelectorAll('[data-swap]').forEach(b => b.onclick = () => { pickIndex = Number(b.dataset.swap); pickFilter = '全部'; mode = 'pick'; paint(); });
     const addBtn = box.querySelector('[data-add-ex]');
     if (addBtn) addBtn.onclick = () => { pickIndex = -1; pickFilter = '全部'; mode = 'pick'; paint(); };
@@ -7097,7 +7485,7 @@ function openSetEditor(sessionId, exIdx, setIdx) {
     fields =
       '<div class="rpe-wrap"><div class="rpe-top"><span>动作质量 RPE</span><b id="es-rpe-out">' +
         (st.rpe != null ? st.rpe : '—') + '</b></div>' +
-        '<input class="rpe-range" id="es-rpe" type="range" min="4" max="10" step="0.5" value="' + (st.rpe != null ? st.rpe : 8) + '">' +
+        '<input class="rpe-range" id="es-rpe" type="range" min="4" max="10" step="0.5" value="' + esc(st.rpe != null ? st.rpe : 8) + '">' +
         '<div class="rpe-scale"><span>4 轻松</span><span>7 吃力</span><span>10 极限</span></div></div>' +
       '<div class="log-grid two" style="margin-top:10px">' + bdField('es-r', '完成次数', st.reps, 'numeric') + '</div>';
   } else {
@@ -7236,12 +7624,18 @@ const CLOUD_META_KEY = 'ft_cloud_meta_v1';
 const CLOUD_REDIRECT_PATH = () => location.origin + location.pathname;
 
 let cloudBusy = false;
+let cloudQueued = false;
+let cloudRetryCount = 0;
+let cloudPendingRemote = null;
 let cloudApplying = false;
 let cloudTimer = null;
 let cloudInitialSyncDone = false;
 const cloudUi = { email: '', code: '', codeSent: false, msg: '', msgKind: '', busy: false };
 
 function cloudCfg() {
+  // 仅本机开发/Mock 允许覆盖，生产环境忽略，避免 XSS 把同步指向攻击者端点。
+  const localDev = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+  if (!localDev) return CLOUD_DEFAULT;
   try {
     const raw = localStorage.getItem(CLOUD_CFG_KEY);
     if (raw) {
@@ -7513,9 +7907,11 @@ async function cloudLogout() {
 }
 
 function cloudIsEmpty(db) {
-  if (!db) return true;
-  const empty = arr => !Array.isArray(arr) || arr.length === 0;
-  return empty(db.sessions) && empty(db.runs) && empty(db.body) && empty(db.checkins) && empty(db.customEx) && !db.planUpdated;
+  return !hasUserRecords(db);
+}
+function cloudHasLiveWorkout() {
+  return (typeof WK !== 'undefined' && !!WK.session) ||
+    (typeof activeSession === 'function' && !!activeSession());
 }
 
 async function cloudPull(session) {
@@ -7526,11 +7922,23 @@ async function cloudPull(session) {
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
+function cloudSaveSnapshot(localDb, remoteDb, reason) {
+  try {
+    localStorage.setItem('ft_sync_last_backup_v1', JSON.stringify({
+      at: new Date().toISOString(),
+      reason: reason || '',
+      local: localDb || null,
+      remote: remoteDb || null
+    }));
+  } catch (e) {}
+}
+
 async function cloudPush(session) {
   const row = await cloudPull(session);
   const data = row && row.data && typeof row.data === 'object' ? Object.assign({}, row.data) : {};
   const now = new Date().toISOString();
   if (!DB.updatedAt) DB.updatedAt = now;
+  cloudSaveSnapshot(DB, row && row.data ? row.data.trainingLogV2 : null, 'before-push');
   data.trainingLogV2 = { schema: 2, savedAt: DB.updatedAt, savedBy: 'training-log', db: DB };
   await cloudFetch(cloudApi('/rest/v1/user_data'), {
     method: 'POST',
@@ -7541,13 +7949,23 @@ async function cloudPush(session) {
 
 function cloudApplyRemote(remoteDb) {
   if (!remoteDb) return;
+  const localPlan = DB.planCustomized ? DB.plan : null;
+  const liveId = WK.session && WK.session.id;
+  cloudSaveSnapshot(DB, remoteDb, 'before-pull');
   cloudApplying = true;
   try {
     DB = normalizeDB(remoteDb);
+    // 用户自己改过的计划优先保留，避免换设备/首次同步把自定义计划洗掉
+    if (localPlan) { DB.plan = localPlan; DB.planCustomized = true; }
     registerCustomExercises();
     ensurePlanData();
     buildPlan();
-    saveDB(true);
+    if (liveId) {
+      const live = DB.sessions.find(s => s.id === liveId);
+      if (live) { WK.session = live; renderWorkout(); }
+      else { closeWorkoutLayer(); cloudUi.msg = '云端数据已更新，当前训练已结束'; }
+    }
+    saveDB(true, { preserveTimestamp: true });
   } finally {
     cloudApplying = false;
   }
@@ -7555,23 +7973,39 @@ function cloudApplyRemote(remoteDb) {
 
 async function cloudSync(opts) {
   opts = opts || {};
-  if (cloudBusy) return;
-  if (!navigator.onLine) {
-    cloudSetMeta({ lastError: '当前离线' });
-    if (!opts.silent) { cloudUi.msg = '当前离线，联网后再同步'; cloudUi.msgKind = 'err'; renderCurrentTab(); }
-    return;
-  }
-  const session = await cloudEnsureSession();
-  if (!session) {
-    cloudUi.msg = '登录已过期，请重新登录';
+  if (cloudBusy) { cloudQueued = true; return; }
+  if (cloudGetMeta().paused && !opts.force) {
+    cloudUi.msg = '自动云同步已暂停：请先在设置里点“重新开启自动同步”';
     cloudUi.msgKind = 'err';
-    if (typeof renderCurrentTab === 'function') renderCurrentTab();
+    renderCurrentTab();
     return;
   }
   cloudBusy = true;
   cloudUi.busy = true;
   if (!opts.silent) { cloudUi.msg = '正在同步…'; renderCurrentTab(); }
   try {
+    if (!navigator.onLine) {
+      cloudSetMeta({ lastError: '当前离线' });
+      cloudUi.msg = '当前离线，联网后再同步';
+      cloudUi.msgKind = 'err';
+      return;
+    }
+    const session = await cloudEnsureSession();
+    if (!session) {
+      cloudUi.msg = '登录已过期，请重新登录';
+      cloudUi.msgKind = 'err';
+      return;
+    }
+    const metaUid = cloudGetMeta().uid;
+    if (metaUid && metaUid !== session.user.id) {
+      if (hasUserRecords(DB)) {
+        cloudUi.msg = '检测到切换了云端账号：已停止本次同步，避免把本机数据传到另一个账号。请先导出/清空本机数据，或退出后重新登录原账号。';
+        cloudUi.msgKind = 'err';
+        return;
+      }
+      cloudSetMeta({ uid: session.user.id });
+    }
+    if (!metaUid) cloudSetMeta({ uid: session.user.id });
     const row = await cloudPull(session);
     const nested = row && row.data && row.data.trainingLogV2;
     const localEmpty = cloudIsEmpty(DB);
@@ -7594,9 +8028,13 @@ async function cloudSync(opts) {
         const remoteSaved = String(nested.savedAt || (row && row.updated_at) || '');
         const localSaved = String(DB.updatedAt || '');
         if (remoteSaved && (!localSaved || remoteSaved > localSaved)) {
-          cloudApplyRemote(remoteDb);
-          cloudUi.msg = '已拉取云端较新的数据';
-          cloudUi.msgKind = 'ok';
+          // 两边都有数据且云端更新：不再静默整库覆盖，交给用户选择。
+          cloudSaveSnapshot(DB, remoteDb, 'conflict');
+          cloudPendingRemote = remoteDb;
+          cloudSetMeta({ paused: true, conflict: true, conflictSavedAt: remoteSaved });
+          cloudUi.msg = '云端数据比本机新，已暂停自动同步：请选择“使用云端数据”或“保留本机并上传”。';
+          cloudUi.msgKind = 'err';
+          return;
         } else {
           await cloudPush(session);
           cloudUi.msg = '已上传本机数据';
@@ -7605,16 +8043,68 @@ async function cloudSync(opts) {
       }
     }
     cloudInitialSyncDone = true;
-    cloudSetMeta({ lastSyncedAt: new Date().toISOString(), lastError: null });
+    cloudRetryCount = 0;
+    cloudPendingRemote = null;
+    cloudSetMeta({ lastSyncedAt: new Date().toISOString(), lastError: null, paused: false, conflict: false });
   } catch (err) {
     cloudUi.msg = String(err.message || err);
     cloudUi.msgKind = 'err';
     cloudSetMeta({ lastError: String(err.message || err) });
+    if (!cloudInitialSyncDone && cloudRetryCount < 3) {
+      cloudRetryCount++;
+      setTimeout(() => { if (navigator.onLine) cloudSync({ silent: true }); }, 12000);
+    }
   } finally {
     cloudBusy = false;
     cloudUi.busy = false;
     if (typeof renderCurrentTab === 'function') renderCurrentTab();
+    if (cloudQueued) {
+      cloudQueued = false;
+      setTimeout(() => cloudSync({ silent: true }), 250);
+    }
   }
+}
+
+async function cloudUseRemote() {
+  let remote = cloudPendingRemote;
+  if (!remote) {
+    try {
+      const session = await cloudEnsureSession();
+      if (!session) throw new Error('登录已过期');
+      const row = await cloudPull(session);
+      remote = row && row.data && row.data.trainingLogV2 && row.data.trainingLogV2.db
+        ? normalizeDB(row.data.trainingLogV2.db) : null;
+    } catch (err) {
+      cloudUi.msg = String(err.message || err); cloudUi.msgKind = 'err'; renderCurrentTab(); return;
+    }
+  }
+  if (!remote) { cloudUi.msg = '没有待处理的云端数据'; renderCurrentTab(); return; }
+  cloudSetMeta({ paused: false, conflict: false });
+  cloudPendingRemote = null;
+  cloudApplyRemote(remote);
+  cloudSetMeta({ lastSyncedAt: new Date().toISOString(), lastError: null });
+  cloudInitialSyncDone = true;
+  cloudUi.msg = '已使用云端数据';
+  cloudUi.msgKind = 'ok';
+  renderCurrentTab();
+}
+
+async function cloudUseLocal() {
+  const session = await cloudEnsureSession();
+  if (!session) { cloudUi.msg = '登录已过期，请重新登录'; renderCurrentTab(); return; }
+  cloudSetMeta({ paused: false, conflict: false });
+  try {
+    await cloudPush(session);
+    cloudSetMeta({ lastSyncedAt: new Date().toISOString(), lastError: null });
+    cloudInitialSyncDone = true;
+    cloudPendingRemote = null;
+    cloudUi.msg = '已保留本机数据并上传到云端';
+    cloudUi.msgKind = 'ok';
+  } catch (err) {
+    cloudUi.msg = String(err.message || err);
+    cloudUi.msgKind = 'err';
+  }
+  renderCurrentTab();
 }
 
 async function cloudDeleteRemote() {
@@ -7634,8 +8124,8 @@ async function cloudDeleteRemote() {
         method: 'PATCH', headers: cloudHeaders(session), body: JSON.stringify({ data: data, updated_at: new Date().toISOString() })
       });
     }
-    cloudSetMeta({ lastSyncedAt: null, lastError: null });
-    cloudUi.msg = '云端训练数据已删除（本机数据保留）';
+    cloudSetMeta({ lastSyncedAt: null, lastError: null, paused: true });
+    cloudUi.msg = '云端训练数据已删除（本机数据保留；自动同步已暂停，避免本机数据自动传回）';
     cloudUi.msgKind = 'ok';
   } catch (err) {
     cloudUi.msg = String(err.message || err);
@@ -7647,20 +8137,27 @@ async function cloudDeleteRemote() {
 function cloudAfterLocalSave() {
   if (cloudApplying || !cloudInitialSyncDone) return;
   if (!cloudGetSession()) return;
+  if (cloudGetMeta().paused) return;
   if (cloudTimer) clearTimeout(cloudTimer);
   cloudTimer = setTimeout(() => {
     cloudTimer = null;
+    if (cloudGetMeta().paused) return;
     cloudSync({ silent: true });
   }, 1600);
 }
 
+function cloudResumeSync() {
+  cloudSetMeta({ paused: false, lastError: null });
+  cloudUi.msg = '自动同步已恢复';
+  cloudUi.msgKind = 'ok';
+  cloudSync({ silent: false, force: true });
+}
+
 function cloudInit() {
   cloudHandleRedirect();
-  if (navigator.onLine) {
-    window.addEventListener('online', () => {
-      if (cloudGetSession()) cloudSync({ silent: true });
-    });
-  }
+  window.addEventListener('online', () => {
+    if (cloudGetSession()) cloudSync({ silent: true });
+  });
   if (cloudGetSession()) {
     setTimeout(() => cloudSync({ silent: true }), 500);
   }
@@ -7693,7 +8190,14 @@ function cloudSettingsCard() {
       '<div class="setrow"><div class="grow"><div class="t">' + cloudEscape(user.email || '已登录') + '</div>' +
         '<div class="s">最近同步：' + cloudEscape(last) + '</div></div><span class="tag accent">云端已连接</span></div>' +
       msg +
+      (meta.conflict
+        ? '<div class="cloud-actions">' +
+            '<button class="btn primary block" data-cloud-use-remote>使用云端数据</button>' +
+            '<button class="btn ghost block" data-cloud-use-local>保留本机并上传</button>' +
+          '</div>'
+        : '') +
       '<div class="cloud-actions">' +
+        (meta.paused ? '<button class="btn primary block" data-cloud-resume>重新开启自动同步</button>' : '') +
         '<button class="btn primary block" data-cloud-sync ' + (cloudUi.busy ? 'disabled' : '') + '>立即同步</button>' +
         '<button class="btn ghost block" data-cloud-logout>退出登录</button>' +
         '<button class="btn ghost block" style="color:var(--danger)" data-cloud-delete>删除云端训练数据</button>' +
@@ -7716,6 +8220,9 @@ function bindCloudSettings() {
   bind('[data-cloud-send]', cloudSendCode);
   bind('[data-cloud-verify]', cloudVerifyCode);
   bind('[data-cloud-sync]', () => cloudSync({ silent: false }));
+  bind('[data-cloud-resume]', cloudResumeSync);
+  bind('[data-cloud-use-remote]', cloudUseRemote);
+  bind('[data-cloud-use-local]', cloudUseLocal);
   bind('[data-cloud-logout]', cloudLogout);
   bind('[data-cloud-delete]', () => {
     confirmDialog({
@@ -7746,6 +8253,10 @@ function init() {
   registerCustomExercises();
   ensurePlanData();
   buildPlan();
+  // 尽量申请持久化存储，降低浏览器自动清理体积数据的风险
+  if (navigator.storage && typeof navigator.storage.persist === 'function') {
+    navigator.storage.persist().catch(() => {});
+  }
   $$('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
       const t = tab.dataset.tab;
@@ -7774,6 +8285,25 @@ function init() {
     saveDB(true);
     setTimeout(() => { if (typeof toast === 'function') toast('计划已更新：Pallof 改按秒、引体技术组不计入训练量'); }, 700);
   }
+
+  // 多标签页：其他页面写入了新的 DB 时，不要用本页旧内存继续覆盖
+  window.addEventListener('storage', e => {
+    if (e.key !== DB_KEY || !e.newValue) return;
+    if (typeof WK !== 'undefined' && WK.session) {
+      if (typeof toast === 'function') toast('其他页面修改了数据；当前训练结束后请刷新页面');
+      return;
+    }
+    try {
+      loadDB();
+      registerCustomExercises();
+      ensurePlanData();
+      buildPlan();
+      renderCurrentTab();
+      if (typeof toast === 'function') toast('其他页面已更新数据，已重新载入');
+    } catch (err) {
+      console.warn('跨页面载入失败', err);
+    }
+  });
 
   // 未完成的训练：直接恢复到中断处（状态机、组数据与计时器都会还原）
   const active = activeSession();

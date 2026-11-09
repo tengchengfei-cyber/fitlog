@@ -1,5 +1,5 @@
 /* 训练日志 PWA Service Worker */
-const CACHE = 'training-log-v1';
+const CACHE = 'training-log-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,12 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      // 单张图标缺失不应让整个 SW install 失败；应用外壳仍可离线。
+      .then((cache) => Promise.all(ASSETS.map((asset) => cache.add(asset).catch(() => null))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {

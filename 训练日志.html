@@ -3,11 +3,11 @@
 <head data-page-node-id="6K3vuKblB557OgptcCpAPZ">
 
   <meta data-page-node-id="H8Z634RjQCT3QkQrh6NbOW" charset="utf-8">
-  <meta data-page-node-id="BqW1todVpjmSKZ413OO8fk" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" name="viewport">
+  <meta data-page-node-id="BqW1todVpjmSKZ413OO8fk" content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport">
   <meta data-page-node-id="KUq8ImsU5Vw3WXZCpPeUgX" content="#ffffff" name="theme-color">
   <meta data-page-node-id="sHBAgS1FxK8gGfsgb4abY8" content="yes" name="mobile-web-app-capable">
   <meta data-page-node-id="vWqHRIFQ7TsLqAGckA4BVm" content="yes" name="apple-mobile-web-app-capable">
-  <meta data-page-node-id="H5lo8o8eobjHa5nm4VDQzP" content="black-translucent" name="apple-mobile-web-app-status-bar-style">
+  <meta data-page-node-id="H5lo8o8eobjHa5nm4VDQzP" content="default" name="apple-mobile-web-app-status-bar-style">
   <meta data-page-node-id="joCa9U9R2MdzbBMVvzWFEs" content="个人训练计划与健身记录：三分化六练，逐组完成、自动休息计时、单次训练即时补录。" name="description">
   <link data-page-node-id="zuW3HaOUBBTc87zOEI6mZr" href="data:application/manifest+json;base64,eyJuYW1lIjoi6K6t57uD5pel5b+XIMK3IOS4ieWIhuWMluWFree7gyIsInNob3J0X25hbWUiOiLorq3nu4Pml6Xlv5ciLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZmZmZmZmIiwibGFuZyI6InpoLUNOIiwiZGVzY3JpcHRpb24iOiLpgJDnu4TorrDlvZXnmoTkuInliIbljJborq3nu4Pml6Xlv5cifQ==" rel="manifest">
   <title data-page-node-id="KFOhp5UWlu4AJMWG9jkAlb" data-pnid-children="zbtNJm9cxdGMDMHRS9T8SI">训练日志 · 三分化六练</title>
@@ -27,7 +27,7 @@
   --line-strong: rgba(0, 0, 0, .18);
   --text: #111111;
   --text-2: #5d5d5d;
-  --muted: #8a8a8a;
+  --muted: #666666;
   --accent: #111111;
   --accent-dim: rgba(0, 0, 0, .06);
   --accent-ink: #ffffff;
@@ -2840,9 +2840,12 @@ function loadDB() {
           planVer: parsed.planVer || null,
           savedAt: new Date().toISOString()
         };
-        // 科学版计划 V8：升级时应用新模板；旧计划完整保存在 planBackup，可手动恢复。
-        DB.plan = defaultPlanData();
-        DB.planCustomized = false;
+        // 科学版计划升级：未自定义计划 → 自动应用新模板；已自定义 → 保留用户计划，仅备份旧模板。
+        const customized = parsed.planCustomized === true && DB.plan;
+        if (!customized) {
+          DB.plan = defaultPlanData();
+          DB.planCustomized = false;
+        }
         DB.planVer = PLAN_VERSION;
         DB.planUpdated = true;
         saveDB(true, { preserveTimestamp: true });
@@ -3058,7 +3061,7 @@ function lastRecord(exId, beforeDate) {
     for (const ex of s.exercises) {
       if (ex.exId === exId && ex.sets.some(st => st.status === 'completed')) {
         const sets = ex.sets.filter(st => st.status === 'completed');
-        return { date: s.date, sets };
+        return { date: s.date, sets, allSets: ex.sets.slice() };
       }
     }
   }
@@ -3157,44 +3160,78 @@ function exercisePR(exId) {
 /* ---------------- 渐进超负荷建议 ----------------
    只依据上一次同动作的真实记录，规则保守：
    次数到上限且有余力 → 加重量；没到上限 → 先加次数；计时类加秒数。 */
+function targetRir(ex) {
+  if (!ex || !ex.rir) return 0;
+  const m = String(ex.rir).match(/\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+}
+function weightIncrement(exId) {
+  const l = LIB[exId] || {};
+  if (l.load === 'body' || l.load === 'other') return 0;
+  if (['肱二头肌', '肱三头肌', '肩', '核心', '小腿'].indexOf(l.group) >= 0) return 1.25;
+  if (l.load === 'machine') return 5;
+  if (l.load === 'dumbbell') return 2;
+  return 2.5;
+}
+function allWorkingSetsDone(last, ex) {
+  const all = (last.allSets || last.sets).filter(st => !st.extra);
+  const completed = all.filter(st => st.status === 'completed' && setHasData(st, ex.exId));
+  return { all, completed, ok: completed.length >= (Number(ex.sets) || 1) };
+}
+
 function progressionHint(ex) {
   if (!ex || !ex.exId || !ex.reps) return null;
   const last = lastRecord(ex.exId, '9999-12-31');
   if (!last) return null;
   const sets = last.sets.filter(st => st.status === 'completed' && setHasData(st, ex.exId));
   if (!sets.length) return null;
-  const top = sets.reduce((a, b) => setScoreNum(b, ex.exId) > setScoreNum(a, ex.exId) ? b : a);
   const hi = ex.reps[1], lo = ex.reps[0];
-  const reps = Number(top.reps) || 0;
-  const rir = top.rir != null ? Number(top.rir) : null;
-  const w = top.weight != null ? Math.abs(Number(top.weight)) : 0;
   const mode = exMode(ex.exId);
+  const done = allWorkingSetsDone(last, ex);
 
   if (mode === 'time') {
-    const sec = Number(top.seconds) || 0;
-    if (!sec) return null;
-    const next = sec >= hi ? sec + 5 : Math.min(hi, sec + 5);
-    return '上次 ' + sec + ' 秒，这次目标 <b>' + next + ' 秒</b>；先保证躯干不晃，再延长时间。';
+    const targetSec = sets.every(st => (Number(st.seconds) || 0) >= hi);
+    if (!done.ok) return '上次没有完成全部 ' + ex.sets + ' 组，这次计时不变，先把每一组都记完整。';
+    if (!targetSec) return '上次最长 ' + Math.max.apply(null, sets.map(st => Number(st.seconds) || 0)) + ' 秒；这次目标 <b>所有组都到 ' + hi + ' 秒</b>，再考虑加时间。';
+    return '上次全部 ' + ex.sets + ' 组都到 ' + hi + ' 秒以上，这次每组加 <b>5 秒</b>；动作变形就停止。';
   }
   if (mode === 'quality') {
-    return '上次 RPE ' + (top.rpe != null ? top.rpe : '—') + (reps ? ' · ' + reps + ' 次' : '') +
-      '。这类动作看质量：动作一变形就停，不用凑次数。';
+    return '这类动作看质量：动作一变形就停，不用凑次数；按计划 RPE 和幅度完成即可。';
   }
   if (isAssist(ex.exId)) {
-    if (reps >= hi) {
-      const nw = Math.max(0, w - 2.5);
-      return '上次辅助 ' + fmtW(w) + ' 做满 ' + reps + ' 次，这次把辅助降到 <b>' + fmtW(nw) + '</b>，次数回到 ' + lo + '–' + hi + ' 也正常。';
-    }
-    return '上次辅助 ' + fmtW(w) + ' × ' + reps + ' 次，这次辅助不变，目标 <b>' + Math.min(hi, reps + 1) + ' 次</b>；到上限再降辅助。';
+    const repsAll = done.completed.every(st => (Number(st.reps) || 0) >= hi);
+    const weight = done.completed.length ? Math.abs(Number(done.completed[0].weight) || 0) : 0;
+    if (!done.ok) return '上次没有完成全部 ' + ex.sets + ' 组辅助引体，这次辅助不变，先把每一组做完整。';
+    if (repsAll) return '上次全部 ' + ex.sets + ' 组都做到 ' + hi + ' 次，这次辅助重量尝试降到 <b>' + fmtW(Math.max(0, weight - 2.5)) + '</b>，次数回到 ' + lo + '–' + hi + '。';
+    return '上次辅助 ' + fmtW(weight) + '，这次辅助不变，目标 <b>所有组都到 ' + hi + ' 次</b>；到上限再降辅助。';
   }
-  if (w > 0) {
-    if (reps >= hi && (rir == null || rir >= 1)) {
-      return '上次 ' + fmtW(w) + ' × ' + reps + ' 已到上限，这次加到 <b>' + fmtW(w + 2.5) + '</b>，从 ' + lo + ' 次开始；做不到就退回原重量。';
-    }
-    return '上次 ' + fmtW(w) + ' × ' + reps + ' 次，这次重量不变，目标 <b>' + Math.min(hi, reps + 1) + ' 次</b>；做满 ' + hi + ' 次再加 2.5 kg。';
+  if (!done.ok) {
+    return '上次没有完成全部 ' + ex.sets + ' 组，这次重量不变，先把每一组都做完；缺组不加重。';
   }
-  if (reps >= hi) return '上次自重已做满 ' + reps + ' 次，可以换更难的变式或加负重；今天先把幅度做满。';
-  return '上次自重 ' + reps + ' 次，这次目标 <b>' + Math.min(hi, reps + 1) + ' 次</b>，不借力。';
+
+  const inc = weightIncrement(ex.exId);
+  const tRir = targetRir(ex);
+  const weights = done.completed.map(st => Math.abs(Number(st.weight) || 0)).filter(w => w > 0);
+  const sameWeight = weights.length === 0 || weights.every(w => Math.abs(w - weights[0]) < 0.01);
+  const allTop = done.completed.every(st => (Number(st.reps) || 0) >= hi);
+  const allRirOk = done.completed.every(st => {
+    if (st.rir == null || st.rir === '') return false;
+    return Number(st.rir) >= tRir;
+  });
+
+  if (weights.length && allTop && allRirOk && sameWeight && inc > 0) {
+    return '上次全部 ' + ex.sets + ' 组都到 ' + hi + ' 次，且每组 RIR ≥ ' + tRir + '；这次加到 <b>' + fmtW(weights[0] + inc) + '</b>，从 ' + lo + ' 次开始。做不到就退回 ' + fmtW(weights[0]) + '。';
+  }
+  if (weights.length && allTop && !allRirOk) {
+    return '次数到上限了，但 RIR 还没达到计划要求的 ' + tRir + '；这次保持 ' + fmtW(weights[0]) + '，把余力留够，不急着加重。';
+  }
+  if (weights.length) {
+    const minReps = Math.min.apply(null, done.completed.map(st => Number(st.reps) || 0));
+    return '上次 ' + fmtW(weights[0]) + '，最弱一组 ' + minReps + ' 次；这次重量不变，目标 <b>所有组至少 ' + Math.min(hi, minReps + 1) + ' 次</b>，全部到 ' + hi + ' 次且 RIR 达标后再加 ' + inc + ' kg。';
+  }
+  const minReps = Math.min.apply(null, done.completed.map(st => Number(st.reps) || 0));
+  if (allTop && allRirOk) return '上次全部 ' + ex.sets + ' 组都到 ' + hi + ' 次，可以换更难的变式或加负重；先把幅度做满。';
+  return '上次自重最弱一组 ' + minReps + ' 次，这次目标 <b>所有组至少 ' + Math.min(hi, minReps + 1) + ' 次</b>，不借力。';
 }
 
 /* ---------------- 训练容量 / 新纪录 / 与上次对比 ---------------- */
@@ -3537,6 +3574,8 @@ let toastTimer = null;
 function toast(msg) {
   const root = $('#toast-root');
   if (!root) return;
+  root.setAttribute('role', 'status');
+  root.setAttribute('aria-live', 'polite');
   const node = document.createElement('div');
   node.className = 'toast';
   node.textContent = msg;
@@ -3548,6 +3587,7 @@ function toast(msg) {
 
 /* ---------------- 弹层 ---------------- */
 function openSheet(opts) {
+  const previousFocus = document.activeElement;
   const mask = document.createElement('div');
   mask.className = 'sheet-mask';
   const actions = (opts.actions || []).map((a, i) =>
@@ -3569,9 +3609,16 @@ function openSheet(opts) {
     document.removeEventListener('keydown', onKey);
     setTimeout(() => mask.remove(), 240);
     document.body.style.overflow = '';
+    if (previousFocus && previousFocus.isConnected && typeof previousFocus.focus === 'function') {
+      setTimeout(() => previousFocus.focus({ preventScroll: true }), 260);
+    }
   };
   document.addEventListener('keydown', onKey);
-  requestAnimationFrame(() => mask.classList.add('on'));
+  requestAnimationFrame(() => {
+    mask.classList.add('on');
+    const first = mask.querySelector('input:not([type="hidden"]),textarea,select,button');
+    if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+  });
   document.body.style.overflow = 'hidden';
 
   mask.addEventListener('click', e => { if (e.target === mask) close(); });
@@ -3589,11 +3636,12 @@ function openSheet(opts) {
 
 function confirmDialog(o) {
   return new Promise(resolve => {
+    const previousFocus = document.activeElement;
     const mask = document.createElement('div');
     mask.className = 'sheet-mask';
     mask.style.alignItems = 'center';
     mask.innerHTML =
-      '<div class="dialog">' +
+      '<div class="dialog" role="dialog" aria-modal="true" aria-label="' + esc(o.title) + '">' +
         '<h3>' + esc(o.title) + '</h3>' +
         '<p>' + esc(o.desc || '') + '</p>' +
         '<div class="sheet-actions">' +
@@ -3602,13 +3650,20 @@ function confirmDialog(o) {
         '</div>' +
       '</div>';
   document.getElementById('sheet-root').appendChild(mask);
-    requestAnimationFrame(() => mask.classList.add('on'));
+    requestAnimationFrame(() => {
+      mask.classList.add('on');
+      const b = mask.querySelector('[data-x="1"]');
+      if (b) b.focus({ preventScroll: true });
+    });
     const onKey = e => { if (e.key === 'Escape') done(null); };
     document.addEventListener('keydown', onKey);
     const done = v => {
       mask.classList.remove('on');
       document.removeEventListener('keydown', onKey);
       setTimeout(() => mask.remove(), 220);
+      if (previousFocus && previousFocus.isConnected && typeof previousFocus.focus === 'function') {
+        setTimeout(() => previousFocus.focus({ preventScroll: true }), 240);
+      }
       resolve(v);
     };
     mask.querySelector('[data-x="0"]').onclick = () => done(false);
@@ -3621,12 +3676,13 @@ function confirmDialog(o) {
    用于“有一次未完成的训练”这类需要区分「继续 / 取消 / 放弃」的场景。 */
 function choiceDialog(o) {
   return new Promise(resolve => {
+    const previousFocus = document.activeElement;
     const actions = o.actions || [];
     const mask = document.createElement('div');
     mask.className = 'sheet-mask';
     mask.style.alignItems = 'center';
     mask.innerHTML =
-      '<div class="dialog choice-dialog">' +
+      '<div class="dialog choice-dialog" role="dialog" aria-modal="true" aria-label="' + esc(o.title) + '">' +
         '<h3>' + esc(o.title) + '</h3>' +
         '<p>' + esc(o.desc || '') + '</p>' +
         '<div class="sheet-actions choice-actions">' +
@@ -3634,11 +3690,18 @@ function choiceDialog(o) {
         '</div>' +
       '</div>';
     document.getElementById('sheet-root').appendChild(mask);
-    requestAnimationFrame(() => mask.classList.add('on'));
+    requestAnimationFrame(() => {
+      mask.classList.add('on');
+      const b = mask.querySelector('[data-choice]');
+      if (b) b.focus({ preventScroll: true });
+    });
     const done = value => {
       mask.classList.remove('on');
       document.removeEventListener('keydown', onKey);
       setTimeout(() => mask.remove(), 220);
+      if (previousFocus && previousFocus.isConnected && typeof previousFocus.focus === 'function') {
+        setTimeout(() => previousFocus.focus({ preventScroll: true }), 240);
+      }
       resolve(value);
     };
     const onKey = e => { if (e.key === 'Escape') done(null); };
@@ -5474,6 +5537,7 @@ const UI = {
   selectedDate: todayKey(),
   statsWeeks: 8,
   liftTab: 'bench',
+  liftMetric: 'weight',
   libQuery: '',
   libEquip: '全部',
   libGroup: '全部'
@@ -6017,29 +6081,49 @@ function chooseDaySheet() {
   });
 }
 
+function planTrainingDays() {
+  return WEEK_ORDER.filter(k => PLAN[k] && PLAN[k].exercises.length).length;
+}
+function planRunCount() {
+  return WEEK_ORDER.filter(k => PLAN[k] && PLAN[k].run).length;
+}
+function planVolumeTargets() {
+  const map = {};
+  WEEK_ORDER.forEach(k => {
+    (PLAN[k].exercises || []).forEach(e => {
+      if (e.tech) return;
+      const lib = LIB[e.exId];
+      if (!lib) return;
+      map[lib.group] = (map[lib.group] || 0) + Number(e.sets || 0);
+    });
+  });
+  return map;
+}
+
 function showPlanOverview() {
   const rows = WEEK_ORDER.map(k => {
     const p = PLAN[k];
     if (!p.exercises.length) {
       return '<div class="row"><div class="idx">' + icon('moon') + '</div><div class="grow"><div class="nm">' + WEEK_LABEL[k] + ' · 恢复日</div>' +
-        '<div class="meta">散步、轻柔活动度；不安排长跑</div></div></div>';
+        '<div class="meta">' + (p.run ? esc(p.run.title) : '完全休息') + '</div></div></div>';
     }
     const sets = p.exercises.reduce((a, e) => a + e.sets, 0);
     return '<div class="row"><div class="idx">' + p.exercises.length + '</div><div class="grow"><div class="nm">' + WEEK_LABEL[k] + ' · ' + esc(p.name) + '</div>' +
       '<div class="meta">' + sets + ' 组 · ' + esc(p.focus) + (p.run ? ' · ' + esc(p.run.title) : '') + '</div></div></div>';
   }).join('');
-  const vol = VOLUME_TARGET.map(v =>
-    '<div class="barline"><div class="top"><span class="g">' + v.group + '</span><span class="n">' + v.value + ' 组</span></div>' +
-    '<div class="track"><i style="width:' + Math.min(100, v.value / 16 * 100) + '%"></i></div></div>').join('');
+  const targets = planVolumeTargets();
+  const vol = Object.keys(targets).sort((a, b) => targets[b] - targets[a]).map(g =>
+    '<div class="barline"><div class="top"><span class="g">' + g + '</span><span class="n">' + targets[g] + ' 组</span></div>' +
+    '<div class="track"><i style="width:' + Math.min(100, targets[g] / 20 * 100) + '%"></i></div></div>').join('');
 
   const totalSets = WEEK_ORDER.reduce((n, k) => n + PLAN[k].exercises.reduce((a, e) => a + e.sets, 0), 0);
 
   openSheet({
-    title: '三分化六练 · 周计划',
-    desc: '腿 / 推 / 拉各两次：A 日强度、B 日容量。跑步独立于力量训练统计。',
+    title: '当前计划 · 周安排',
+    desc: planTrainingDays() + ' 个力量训练日 · ' + planRunCount() + ' 次可选轻松跑。计划内容以当前编辑结果为准。',
     body: '<div class="card flat" style="margin-bottom:14px">' + rows + '</div>' +
       '<div class="section-label" style="margin-top:0">每周起始训练量 · 共 ' + totalSets + ' 组</div>' + '<div class="bars">' + vol + '</div>' +
-      '<div class="note mt16">' + icon('info') + '<span>A 日主项 5 组大重量低次数，B 日 2–3 组中等重量高次数。组数是起点不是硬指标；臀与小腿只计直接组，深蹲、分腿蹲、硬拉另有间接刺激。</span></div>',
+      '<div class="note mt16">' + icon('info') + '<span>组数是起点不是硬指标；力量主项保留约 2 RIR，辅助动作 1–2 RIR。计划修改后，这里的统计会自动更新。</span></div>',
     actions: [{ label: '编辑计划', cls: 'primary', onClick: () => { setTimeout(() => openPlanEditor(), 220); } }]
   });
 }
@@ -6560,11 +6644,15 @@ function renderStats() {
 
     '<div class="card">' +
       '<div class="card-title" style="margin-bottom:10px"><h2>主项表现</h2><span class="hint">按日期</span></div>' +
-      '<div class="segmented block" style="margin-bottom:12px">' +
+      '<div class="segmented block" style="margin-bottom:10px">' +
         mainIds.map(id =>
           '<button data-lift="' + id + '" class="' + (activeLift === id ? 'on' : '') + '">' + esc(LIB[id] ? LIB[id].name : id) + '</button>').join('') +
       '</div>' +
-      renderLiftChart(activeLift) +
+      '<div class="chiprow" style="margin-bottom:10px">' +
+        '<button data-lift-metric="weight" class="' + (UI.liftMetric !== 'e1rm' ? 'on' : '') + '">最重工作组</button>' +
+        '<button data-lift-metric="e1rm" class="' + (UI.liftMetric === 'e1rm' ? 'on' : '') + '">估算 1RM</button>' +
+      '</div>' +
+      renderLiftChart(activeLift, UI.liftMetric) +
     '</div>' +
 
     '<div class="card">' +
@@ -6583,7 +6671,7 @@ function renderStats() {
         const mins = DB.runs.filter(r => r.date >= w.start && r.date <= w.end).reduce((n, r) => n + (r.minutes || 0), 0);
         return { label: fmtShort(w.start), value: mins, color: 'rgba(0,0,0,.55)' };
       }), { height: 140 }) +
-      '<div class="f11 mut mt8">计划：周二 30–40 分钟 + 周六 45–60 分钟</div>' +
+      '<div class="f11 mut mt8">计划：' + (WEEK_ORDER.filter(k => PLAN[k].run).map(k => WEEK_LABEL[k] + ' ' + PLAN[k].run.title).join(' · ') || '未安排跑步') + '</div>' +
     '</div>' +
 
     renderReviewCard(cur) +
@@ -6629,8 +6717,9 @@ function chartCard(title, unit, body, hint) {
     '<span class="hint">' + (hint || '') + '</span></div>' + body + '</div>';
 }
 
-function liftPoints(exId) {
+function liftPoints(exId, metric) {
   const pts = [];
+  const useE1rm = metric === 'e1rm';
   DB.sessions.filter(s => s.status !== 'in_progress').sort((a, b) => (a.date < b.date ? -1 : 1)).forEach(s => {
     const ex = s.exercises.find(e => e.exId === exId);
     if (!ex) return;
@@ -6647,10 +6736,11 @@ function liftPoints(exId) {
       pts.push({ x: s.date, y: best.seconds, seconds: best.seconds });
       return;
     }
-    const weighted = done.filter(st => st.weight != null);
+    const weighted = done.filter(st => st.weight != null && Number(st.weight) > 0);
     if (weighted.length) {
-      const best = weighted.reduce((a, b) => (Math.abs(b.weight) > Math.abs(a.weight) ? b : a));
-      pts.push({ x: s.date, y: Math.abs(best.weight), reps: best.reps });
+      const best = weighted.reduce((a, b) => (prScore(b, exId) > prScore(a, exId) ? b : a));
+      const y = useE1rm ? Math.round(prScore(best, exId) * 10) / 10 : Math.abs(Number(best.weight) || 0);
+      pts.push({ x: s.date, y, reps: best.reps, weight: Math.abs(Number(best.weight) || 0), e1rm: useE1rm });
     } else {
       const best = done.reduce((a, b) => ((b.reps || 0) > (a.reps || 0) ? b : a));
       pts.push({ x: s.date, y: best.reps, reps: best.reps });
@@ -6659,9 +6749,10 @@ function liftPoints(exId) {
   return pts;
 }
 
-function renderLiftChart(tab) {
+function renderLiftChart(tab, metric) {
   const exId = (LIB[tab] && !LIB[tab].archived) ? tab : (mainLiftIds()[0] || 'bench');
-  const pts = liftPoints(exId);
+  const useE1rm = metric === 'e1rm';
+  const pts = liftPoints(exId, useE1rm ? 'e1rm' : 'weight');
   if (pts.length < 2) return emptyBlock('「' + LIB[exId].name + '」记录不足 2 次', 'chart');
   const best = pts.reduce((a, b) => (b.y > a.y ? b : a));
   const isBody = LIB[exId].load === 'body';
@@ -6671,16 +6762,19 @@ function renderLiftChart(tab) {
     ? best.y + ' 次' + (best.assist != null ? '（辅助 ' + fmtW(Math.abs(best.assist)) + '）' : '')
     : isSec ? best.y + ' 秒'
     : isBody ? best.y + ' 次'
+    : useE1rm ? '约 ' + fmtW(best.y) + '（估算 1RM）'
     : fmtW(best.y);
   return lineChart({ points: pts, color: '#111111', height: 170 }) +
     '<div class="flex between aic mt12">' +
       '<div class="f12 mut">最佳 ' + bestText + ' · ' + fmtCN(best.x) + '</div>' +
       '<div class="f12 mut">共 ' + pts.length + ' 次记录</div>' +
     '</div>' +
-    (assist ? '<div class="f11 mut mt8">辅助引体按最多次数统计；括号内是当天的辅助配重，配重越小越难。</div>'
+    (useE1rm && !assist && !isSec
+      ? '<div class="f11 mut mt8">估算 1RM = 重量 × (1 + 次数/30)，不是实测极限；用于观察趋势，不当作真实最大重量。</div>'
+      : assist ? '<div class="f11 mut mt8">辅助引体按最多次数统计；括号内是当天的辅助配重，配重越小越难。</div>'
       : isSec ? '<div class="f11 mut mt8">计时类动作按最长保持时间统计。</div>'
       : isBody ? '<div class="f11 mut mt8">引体按最大严格次数统计（无负重）。</div>'
-      : '<div class="f11 mut mt8">按当次最重工作组统计，未换算 1RM。</div>');
+      : '<div class="f11 mut mt8">按当次最重工作组统计，未换算 1RM；可切换“估算 1RM”。</div>');
 }
 
 function groupSetsInRange(start, end) {
@@ -6713,12 +6807,12 @@ function renderVolumeChart(weeks) {
 
 function renderGroupBars(w) {
   const m = groupSetsInRange(w.start, w.end);
-  const targets = VOLUME_TARGET.reduce((acc, t) => { acc[t.group] = t.value; return acc; }, {});
-  const groups = VOLUME_TARGET.map(t => t.group);
+  const targets = planVolumeTargets();
+  const groups = Object.keys(targets).sort((a, b) => targets[b] - targets[a]);
   const rows = groups.map(g => {
     const val = m[g] || 0;
     const target = targets[g] || null;
-    const max = 16;
+    const max = Math.max(20, target || 0);
     return '<div class="barline"><div class="top"><span class="g">' + g + '</span>' +
       '<span class="n">' + val + (target ? ' / ' + target : '') + ' 组</span></div>' +
       '<div class="track"><i style="width:' + Math.min(100, val / max * 100) + '%"></i>' +
@@ -6810,19 +6904,22 @@ function buildReview(week) {
 
   // 训练量
   const m = groupSetsInRange(week.start, week.end);
+  const targets = planVolumeTargets();
+  const groups = Object.keys(targets).sort((a, b) => targets[b] - targets[a]).slice(0, 4);
   const flags = [];
-  ['背', '胸', '股四头肌', '核心'].forEach(g => {
+  groups.forEach(g => {
     const v = m[g] || 0;
-    const full = { '背': 13, '胸': 13, '股四头肌': 12, '核心': 8 }[g];
+    const full = targets[g] || 0;
+    if (!full) return;
     const t = Math.round(full * factor * 10) / 10;
     if (v > t * 1.3) flags.push(g + ' ' + v + ' 组，高于同期起始量 ' + t + ' 组');
     else if (v > 0 && v < t * 0.6) flags.push(g + ' ' + v + ' 组，低于同期起始量 ' + t + ' 组');
   });
   items.push({
     t: '训练量分布',
-    b: '背部 ' + (m['背'] || 0) + ' 组、胸 ' + (m['胸'] || 0) + ' 组、股四头肌 ' + (m['股四头肌'] || 0) + ' 组、核心 ' + (m['核心'] || 0) + ' 组。' +
-      (flags.length ? flags.join('；') + '。' : '与起始量接近。'),
-    src: '按动作主肌群统计已完成工作组；引体技术组不计入，后束/面拉不计入背阔肌总量' + (partial ? '；目标按已过训练日折算' : '')
+    b: groups.map(g => g + ' ' + (m[g] || 0) + ' 组').join('、') + '。' +
+      (flags.length ? flags.join('；') + '。' : '与当前计划起始量接近。'),
+    src: '按动作主肌群统计已完成工作组；目标来自当前计划自动计算' + (partial ? '；目标按已过训练日折算' : '')
   });
 
   // 睡眠与疲劳
@@ -6843,12 +6940,13 @@ function buildReview(week) {
   const runs = DB.runs.filter(r => r.date >= week.start && r.date <= week.end);
   const mins = runs.reduce((n, r) => n + (r.minutes || 0), 0);
   const km = runs.reduce((n, r) => n + (r.distance || 0), 0);
+  const runPlan = WEEK_ORDER.filter(k => PLAN[k].run).map(k => WEEK_LABEL[k] + ' ' + PLAN[k].run.title).join('、');
   items.push({
     t: '跑步负荷 ' + mins + ' 分钟',
     b: runs.length ? '本周 ' + runs.length + ' 次轻松跑' + (km > 0 ? '，共 ' + km.toFixed(1) + ' km' : '') + '。' +
-      (mins > 110 ? '总量偏高，若周一深蹲表现下降，先缩短周六长跑 10–15 分钟。' : '在计划范围内，保持轻松强度，不追配速。')
-      : '本周没有跑步记录。计划为周二 30–40 分钟、周六 45–60 分钟轻松跑。',
-    src: '跑步日志时长、距离；与力量训练分开统计'
+      (mins > 110 ? '总量偏高，若下一次腿部训练表现下降，先缩短轻松跑 10–15 分钟。' : '在计划范围内，保持轻松强度，不追配速。')
+      : '本周没有跑步记录。当前计划的可选轻松跑：' + (runPlan || '无') + '。',
+    src: '当前计划的可选有氧 + 本周实际跑步记录'
   });
 
   // 下周建议
@@ -6867,6 +6965,10 @@ function buildReview(week) {
 function bindStats() {
   $$('[data-lift]').forEach(b => b.addEventListener('click', () => {
     UI.liftTab = b.dataset.lift;
+    renderCurrentTab();
+  }));
+  $$('[data-lift-metric]').forEach(b => b.addEventListener('click', () => {
+    UI.liftMetric = b.dataset.liftMetric === 'e1rm' ? 'e1rm' : 'weight';
     renderCurrentTab();
   }));
   $$('[data-add-body]').forEach(b => b.onclick = () => openBodySheet(todayKey()));
@@ -7228,11 +7330,11 @@ function renderSettings() {
 
     '<div class="card">' +
       '<div class="card-title"><h2>训练</h2></div>' +
-      '<div class="setrow"><div class="grow"><div class="t">三分化六练模板</div>' +
-        '<div class="s">A 日（一/二/三）强度、B 日（五/六/日）容量。训练中可平替或调整，不改变模板。</div></div>' +
-        '<span class="tag accent">V2.0</span></div>' +
+      '<div class="setrow"><div class="grow"><div class="t">当前训练模板</div>' +
+        '<div class="s">' + planTrainingDays() + ' 个力量训练日 · 当前动作与组数以计划编辑器为准</div></div>' +
+        '<span class="tag accent">V10</span></div>' +
       '<div class="setrow"><div class="grow"><div class="t">每周计划量</div>' +
-        '<div class="s">' + PLAN_TOTAL_SETS + ' 个工作组 · 跑步 2 次（独立统计）</div></div>' +
+        '<div class="s">' + PLAN_TOTAL_SETS + ' 个工作组 · ' + planRunCount() + ' 次可选轻松跑（独立统计）</div></div>' +
         '<button class="btn sm" data-plan="1">查看</button></div>' +
       '<div class="setrow"><div class="grow"><div class="t">编辑训练计划</div>' +
         '<div class="s">修改动作、组数、次数、组间休息与训练日顺序</div></div>' +
@@ -7265,7 +7367,7 @@ function renderSettings() {
     '<div class="card">' +
       '<div class="card-title"><h2>关于</h2></div>' +
       '<div class="f12 mut" style="line-height:1.8">' +
-        '个人训练计划与健身 App · 本地优先（计划 V2.0）<br>' +
+        '个人训练计划与健身 App · 本地优先（计划 V10）<br>' +
         '默认数据保存在本机浏览器；登录云端同步后，训练数据会保存到你的 Supabase 账号。未登录时不上传服务器。<br>' +
         '营养参考（起始值）：' + NUTRITION.kcal + ' kcal · 蛋白 ' + NUTRITION.protein + ' g · 脂肪 ' + NUTRITION.fat + ' g · 碳水 ' + NUTRITION.carb + ' g；' + NUTRITION.note + '。<br>' +
         '本工具不是医疗处方。开始训练前应确认无未评估的关节/肌腱损伤、心血管问题或医生限制；出现锐痛、胸痛、异常气促或晕厥应停止并寻求专业评估。' +
@@ -7278,7 +7380,7 @@ function renderSettings() {
 function rowSwitch(title, sub, on, act) {
   return '<div class="setrow"><div class="grow"><div class="t">' + title + '</div>' +
     '<div class="s">' + sub + '</div></div>' +
-    '<button class="switch ' + (on ? 'on' : '') + '" data-act="' + act + '" aria-label="' + title + '"></button></div>';
+    '<button class="switch ' + (on ? 'on' : '') + '" data-act="' + act + '" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" aria-label="' + esc(title) + '"></button></div>';
 }
 
 function openMainLiftSheet() {
@@ -7566,7 +7668,7 @@ function openPlanEditor(startDay) {
     });
     const rp = box.querySelector('[data-reset-plan]');
     if (rp) rp.onclick = () => confirmDialog({
-      title: '恢复默认科学版计划？', desc: '会还原 4 天上下肢模板的组数、次数、休息与训练日安排，历史记录不受影响。', confirmText: '恢复'
+      title: '恢复默认科学版计划？', desc: '会还原当前默认模板的组数、次数、休息与训练日安排，历史记录不受影响。', confirmText: '恢复'
     }).then(ok => { if (ok) { resetPlan(); paint(); toast('已恢复默认科学版计划'); } });
     const rbk = box.querySelector('[data-restore-plan]');
     if (rbk) rbk.onclick = () => confirmDialog({

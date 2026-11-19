@@ -1263,7 +1263,7 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; min-height:
 .wd.today .t { font-weight: 700; }
 
 /* 首页快捷操作 */
-.quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 12px; }
+.quick-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-bottom: 12px; }
 .quick-row button {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 13px 6px 11px;
@@ -1400,6 +1400,18 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; min-height:
 .pe-daymeta label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
 .pe-daymeta .input { font-size: 16px; }
 .pe-daymeta textarea.input { min-height: 62px; font-size: 14px; line-height: 1.55; }
+
+/* 计划冻结 */
+.hero.freeze-hero { background: linear-gradient(160deg, #25313d, #10151b 70%); }
+.hero.freeze-hero.ended { background: linear-gradient(160deg, #283a31, #101a15 70%); }
+.wd.frozen .dot { background: rgba(120, 160, 190, .55); box-shadow: 0 0 0 4px rgba(120, 160, 190, .12); }
+.cal-d.frozen { color: #6b879c; background: rgba(120, 160, 190, .10); }
+.cal-d.frozen .mk { background: rgba(120, 160, 190, .45); }
+.freeze-day-note { padding: 14px; border-radius: 12px; background: rgba(120,160,190,.08); color: #4b6475; font-size: 13px; }
+
+/* 随手练 */
+.freeform-page { max-width: 340px; margin: 0 auto; padding-top: 10px; }
+.freeform-page h2 { font-weight: 650; }
 /* iOS 聚焦输入框时 >=16px 才不会自动放大 */
 .input, .field .ctrl input, .bf-set-row .input, .cloud-card .cloud-email .input { font-size: 16px; }
 
@@ -2304,73 +2316,76 @@ Object.keys(LIB_SWAP).forEach(id => {
 /* ---------------- 训练计划模板 ---------------- */
 const PLAN_DEFAULT = {
   mon: {
-    key: 'mon', label: '周一', name: '腿 A', focus: '强度日 · 大重量低次数',
+    key: 'mon', label: '周一', name: '拉 A', focus: '三分化 · 背部力量',
     exercises: [
-      { exId: 'squat', sets: 5, reps: [4, 6], rir: '2', rest: 180, note: '主项：5 组大重量；第 5 组明显掉速就停在 4 组' },
-      { exId: 'rdl', sets: 3, reps: [6, 8], rir: '2', rest: 150, note: '髋铰链大重量；杠铃贴腿，不追求触地' },
-      { exId: 'bss', sets: 2, reps: [8, 10], rir: '2', rest: 105, note: '左右各 1 组算 1 组；两侧幅度一致' },
-      { exId: 'calfraise', sets: 2, reps: [8, 12], rir: '1–2', rest: 75, note: '底部充分拉伸，顶端停 1 秒' },
-      { exId: 'abwheel', sets: 2, reps: [8, 10], rir: '2', rest: 75, note: '腰椎不塌陷；幅度以能主动收回为限' }
+      { exId: 'latpull', sets: 4, reps: [6, 8], rir: '2', rest: 150, note: '背部主项：高位下拉；先肩胛下沉再拉' },
+      { exId: 'chestsupportedrow', sets: 4, reps: [6, 8], rir: '2', rest: 150, note: '水平拉主项：胸贴靠垫，顶端停 1 秒' },
+      { exId: 'tbar', sets: 2, reps: [8, 10], rir: '2', rest: 120, note: '背部厚度；不甩腰' },
+      { exId: 'facerpull', sets: 2, reps: [15, 20], rir: '1–2', rest: 60, note: '轻重量，肩胛控制优先' },
+      { exId: 'barbellcurl', sets: 3, reps: [8, 12], rir: '1–2', rest: 75, note: '躯干不后仰，肘部固定在体侧' }
     ],
     run: null
   },
   tue: {
-    key: 'tue', label: '周二', name: '推 A', focus: '强度日 · 大重量低次数',
+    key: 'tue', label: '周二', name: '推 A', focus: '三分化 · 胸部力量',
     exercises: [
-      { exId: 'bench', sets: 5, reps: [4, 6], rir: '2', rest: 180, note: '主项：5 组大重量；必须用安全杆或保护者' },
-      { exId: 'inclinebb', sets: 3, reps: [6, 8], rir: '2', rest: 150, note: '凳角 20–30°；角度过高会变成推肩' },
-      { exId: 'ohp', sets: 3, reps: [6, 8], rir: '2', rest: 150, note: '收紧臀腹；腰部明显代偿就降重量' },
-      { exId: 'pushdown', sets: 2, reps: [8, 12], rir: '1–2', rest: 75, note: '肘部固定，躯干不摆动借力' }
+      { exId: 'bench', sets: 4, reps: [4, 6], rir: '2', rest: 180, note: '主项：卧推；用安全杆或保护者，保留约 2 RIR' },
+      { exId: 'inclinebb', sets: 3, reps: [8, 10], rir: '2', rest: 120, note: '上斜 20–30°，补上胸' },
+      { exId: 'shoulderpress', sets: 3, reps: [8, 10], rir: '2', rest: 120, note: '肩部无痛优先，不强求大幅度' },
+      { exId: 'chestpress', sets: 2, reps: [10, 12], rir: '1–2', rest: 90, note: '补足胸部训练量，动作稳定优先' },
+      { exId: 'lateral', sets: 2, reps: [12, 15], rir: '1–2', rest: 60, note: '肩中束；高次数、不甩动' },
+      { exId: 'pushdown', sets: 2, reps: [10, 12], rir: '1–2', rest: 60, note: '肘部固定，躯干不摆动' }
     ],
-    run: { title: '轻松跑 30–40 分钟', detail: '与力量训练尽量间隔 ≥6 小时；能完整说句子；不做间歇' }
+    run: null
   },
   wed: {
-    key: 'wed', label: '周三', name: '拉 A', focus: '强度日 · 大重量低次数',
+    key: 'wed', label: '周三', name: '腿 A', focus: '三分化 · 深蹲与髋铰链',
     exercises: [
-      { exId: 'pullup', sets: 2, reps: [1, 2], rir: '≥1', rest: 120, tech: true, note: '技术组：不做最大次数、不摆浪，不计入增肌组，也不作为主项表现' },
-      { exId: 'latpull', sets: 4, reps: [6, 8], rir: '2', rest: 150, note: '背部主项：高位下拉；能标准引体 8 次后再考虑换成引体' },
-      { exId: 'tbar', sets: 3, reps: [6, 8], rir: '2', rest: 150, note: '水平拉大重量；胸托版本优先，顶端停 1 秒' },
-      { exId: 'barbellcurl', sets: 2, reps: [8, 10], rir: '1–2', rest: 75, note: '躯干不后仰，肘部固定在体侧' },
-      { exId: 'hangingknee', sets: 2, reps: [10, 12], rir: '2', rest: 75, note: '先骨盆后倾再抬膝，身体不摆动' }
+      { exId: 'squat', sets: 4, reps: [4, 6], rir: '2', rest: 180, note: '主项：深蹲；保留 2 次余力，动作质量优先' },
+      { exId: 'rdl', sets: 3, reps: [6, 8], rir: '2', rest: 150, note: '髋铰链：杠铃贴腿，不追求触地' },
+      { exId: 'legpress', sets: 3, reps: [10, 12], rir: '1–2', rest: 120, note: '补充股四头训练量，双脚位置稳定' },
+      { exId: 'legcurl', sets: 3, reps: [10, 12], rir: '1–2', rest: 90, note: '控制回程，不甩重量' },
+      { exId: 'calfraise', sets: 3, reps: [10, 15], rir: '1–2', rest: 75, note: '底部拉伸、顶端停 1 秒' },
+      { exId: 'abwheel', sets: 2, reps: [8, 12], rir: '2', rest: 75, note: '腰椎不塌陷；幅度以能主动收回为限' }
     ],
     run: null
   },
   thu: {
-    key: 'thu', label: '周四', name: '恢复日', focus: '不安排力量训练与强制有氧；可轻松散步',
-    exercises: [], run: null, rest: true
+    key: 'thu', label: '周四', name: '恢复日', focus: '不安排力量训练；可选轻松有氧',
+    exercises: [], run: { title: '轻松跑 20–30 分钟（可选）', detail: '能完整说句子；不做间歇。恢复日以睡眠和饮食为主' }, rest: true
   },
   fri: {
-    key: 'fri', label: '周五', name: '腿 B', focus: '容量日 · 中等重量高次数',
+    key: 'fri', label: '周五', name: '拉 B', focus: '三分化 · 背部容量',
     exercises: [
-      { exId: 'hacksquat', sets: 3, reps: [10, 12], rir: '2', rest: 120, note: '容量日主项：重量约为周一深蹲的 70–80%' },
-      { exId: 'hipthrust', sets: 2, reps: [10, 12], rir: '1–2', rest: 105, note: '顶端骨盆中立，不用腰椎后仰代偿' },
-      { exId: 'legext', sets: 2, reps: [12, 15], rir: '1–2', rest: 75, note: '顶端收缩 1 秒，不锁膝猛顶' },
-      { exId: 'legcurl', sets: 3, reps: [12, 15], rir: '1–2', rest: 75, note: '本周腘绳肌的主要屈膝训练量，控制回程' },
-      { exId: 'seatedcalf', sets: 2, reps: [12, 15], rir: '1–2', rest: 75, note: '完整幅度；小腿是弱项可加到 3 组' },
-      { exId: 'declinecrunch', sets: 2, reps: [12, 15], rir: '2', rest: 75, note: '胸骨靠近骨盆，不用惯性甩起' }
+      { exId: 'singlelat', sets: 3, reps: [10, 12], rir: '2', rest: 90, note: '单侧背阔肌；躯干稳定不侧弯' },
+      { exId: 'seatedrow', sets: 3, reps: [10, 12], rir: '2', rest: 105, note: '躯干可控，肘部沿固定轨迹后拉' },
+      { exId: 'reardelt', sets: 2, reps: [15, 20], rir: '1–2', rest: 60, note: '后束高次数，不耸肩' },
+      { exId: 'facerpull', sets: 2, reps: [15, 20], rir: '1–2', rest: 60, note: '轻重量，肩胛控制优先' },
+      { exId: 'cablecurl', sets: 3, reps: [10, 15], rir: '1–2', rest: 60, note: '不借力，离心控制' }
     ],
     run: null
   },
   sat: {
-    key: 'sat', label: '周六', name: '推 B', focus: '容量日 · 中等重量高次数',
+    key: 'sat', label: '周六', name: '推 B', focus: '三分化 · 胸肩容量',
     exercises: [
-      { exId: 'inclincedb', sets: 3, reps: [10, 12], rir: '2', rest: 120, note: '容量日主项；左右轨迹一致，控制下放' },
-      { exId: 'chestpress', sets: 2, reps: [12, 15], rir: '1–2', rest: 90, note: '补足胸部训练量，不再叠加第三个推胸' },
-      { exId: 'shoulderpress', sets: 2, reps: [10, 12], rir: '1–2', rest: 105, note: '不强求大幅度，肩关节无痛优先' },
-      { exId: 'lateral', sets: 3, reps: [15, 20], rir: '1–2', rest: 60, note: '高次数、不甩动；本周侧平举共 3 组' },
-      { exId: 'overheadtri', sets: 2, reps: [12, 15], rir: '1–2', rest: 75, note: '肘部位置固定；不适改绳索下压' }
+      { exId: 'inclinebb', sets: 3, reps: [8, 10], rir: '2', rest: 120, note: '容量日胸部主项；凳角 20–30°' },
+      { exId: 'chestpress', sets: 3, reps: [10, 12], rir: '1–2', rest: 90, note: '补足胸部训练量' },
+      { exId: 'shoulderpress', sets: 2, reps: [10, 12], rir: '1–2', rest: 105, note: '肩部无痛优先' },
+      { exId: 'lateral', sets: 3, reps: [15, 20], rir: '1–2', rest: 60, note: '肩中束；高次数、不甩动' },
+      { exId: 'overheadtri', sets: 2, reps: [10, 12], rir: '1–2', rest: 75, note: '肘部位置固定' },
+      { exId: 'pushdown', sets: 2, reps: [10, 12], rir: '1–2', rest: 60, note: '肘部固定，躯干不摆动' }
     ],
-    run: { title: '较长距离轻松跑 45–60 分钟', detail: '从当前能轻松完成的距离起步；不追配速、不冲刺' }
+    run: null
   },
   sun: {
-    key: 'sun', label: '周日', name: '拉 B', focus: '容量日 · 中等重量高次数',
+    key: 'sun', label: '周日', name: '腿 B', focus: '三分化 · 后链与单关节',
     exercises: [
-      { exId: 'singlelat', sets: 3, reps: [10, 12], rir: '2', rest: 90, note: '两侧各做 1 组算 1 组；躯干稳定不侧弯' },
-      { exId: 'seatedrow', sets: 3, reps: [10, 12], rir: '2', rest: 105, note: '躯干可控，肘部沿固定轨迹后拉' },
-      { exId: 'reardelt', sets: 2, reps: [15, 20], rir: '1–2', rest: 60, note: '后束高次数，不耸肩' },
-      { exId: 'facerpull', sets: 2, reps: [15, 20], rir: '1–2', rest: 60, note: '轻重量，肩胛控制优先' },
-      { exId: 'cablecurl', sets: 2, reps: [12, 15], rir: '1–2', rest: 75, note: '不借力，离心控制' },
-      { exId: 'pallof', sets: 2, reps: [20, 30], unit: 'sec', rir: '2', rest: 60, note: '每侧保持 20–30 秒；骨盆与胸廓朝前，抵抗旋转' }
+      { exId: 'deadlift', sets: 3, reps: [4, 6], rir: '2', rest: 180, note: '主项：传统硬拉；先确认动作稳定，腰部不适不做' },
+      { exId: 'hacksquat', sets: 3, reps: [8, 12], rir: '2', rest: 120, note: '股四头容量；膝髋轨迹一致' },
+      { exId: 'legcurl', sets: 3, reps: [12, 15], rir: '1–2', rest: 75, note: '腘绳肌主要屈膝训练量' },
+      { exId: 'legext', sets: 2, reps: [12, 15], rir: '1–2', rest: 75, note: '顶端收缩 1 秒，不锁膝猛顶' },
+      { exId: 'seatedcalf', sets: 3, reps: [12, 20], rir: '1–2', rest: 75, note: '完整幅度；弱项可再加 1 组' },
+      { exId: 'declinecrunch', sets: 2, reps: [12, 15], rir: '2', rest: 75, note: '胸骨靠近骨盆，不用惯性甩起' }
     ],
     run: null
   }
@@ -2380,14 +2395,16 @@ const PLAN_DEFAULT = {
 const WARMUP_TEXTS = {
   leg: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做动态活动：髋绕环、弓步转体、踝关节活动各 8–10 次，臀桥 10 次激活臀部。\n第一个主项用空杆和 50% / 70% 重量做 2–3 组递增热身，每组 3–5 次；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。',
   push: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做动态活动：肩绕环、弹力带肩胛下沉、肩袖外旋各 10–12 次，胸椎旋转每侧 6–8 次。\n第一个推类主项用空杆和 50% / 70% 重量做 2–3 组递增热身，每组 3–5 次；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。',
-  pull: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做动态活动：弹力带下拉、肩胛引体、肩绕环各 10–12 次，髋部动态活动 8–10 次。\n第一个拉类主项先用轻重量做 2 组，每组 8–10 次，找肩胛下沉和背阔肌发力感；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。'
+  pull: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做动态活动：弹力带下拉、肩胛引体、肩绕环各 10–12 次，髋部动态活动 8–10 次。\n第一个拉类主项先用轻重量做 2 组，每组 8–10 次，找肩胛下沉和背阔肌发力感；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。',
+  upper: '先做 3–5 分钟低强度有氧：快走、单车或椭圆机，身体微微发热即可。\n再做上肢动态活动：肩绕环、弹力带肩胛下沉、肩袖外旋各 10–12 次，胸椎旋转每侧 6–8 次。\n第一个推类或拉类主项先用轻重量做 2 组，每组 6–10 次；热身组不记录、不计入正式组。\n正式组前不要做长时间静态拉伸。'
 };
 const STRETCH_TEXTS = {
   leg: '训练后做 5–8 分钟低强度放松：髋屈肌拉伸、股四头肌拉伸、腘绳肌轻拉伸、小腿靠墙拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，让心率降下来。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；出现锐痛、麻木或关节不适立即停止。\n拉伸不记录、不计组。',
   push: '训练后做 5–8 分钟低强度放松：胸大肌门框拉伸、背阔肌跪姿拉伸、肩后侧拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，放松肩颈。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；肩前侧有挤压感时减小幅度。\n拉伸不记录、不计组。',
-  pull: '训练后做 5–8 分钟低强度放松：背阔肌跪姿拉伸、胸椎旋转、肱二头肌轻拉伸、前臂拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，放松肩颈。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；出现麻木或刺痛立即停止。\n拉伸不记录、不计组。'
+  pull: '训练后做 5–8 分钟低强度放松：背阔肌跪姿拉伸、胸椎旋转、肱二头肌轻拉伸、前臂拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，放松肩颈。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；出现麻木或刺痛立即停止。\n拉伸不记录、不计组。',
+  upper: '训练后做 5–8 分钟低强度放松：胸大肌门框拉伸、背阔肌跪姿拉伸、肩后侧拉伸、前臂拉伸，每侧 20–30 秒。\n再做 5 次缓慢深呼吸，放松肩颈。\n只拉到轻微牵拉感，不要弹震，也不要追求疼痛幅度；出现麻木或刺痛立即停止。\n拉伸不记录、不计组。'
 };
-const DAY_GUIDE_TYPE = { mon: 'leg', tue: 'push', wed: 'pull', thu: '', fri: 'leg', sat: 'push', sun: 'pull' };
+const DAY_GUIDE_TYPE = { mon: 'pull', tue: 'push', wed: 'leg', thu: '', fri: 'pull', sat: 'push', sun: 'leg' };
 WEEK_ORDER.forEach(k => {
   const type = DAY_GUIDE_TYPE[k];
   PLAN_DEFAULT[k].warmup = WARMUP_TEXTS[type] || '';
@@ -2402,10 +2419,12 @@ const GUIDE_PULL_IDS = ['latpull', 'singlelat', 'pullup', 'assistedpullup', 'tba
 function guideTypeForPlan(plan) {
   if (!plan || !Array.isArray(plan.exercises) || !plan.exercises.length) return '';
   const label = (plan.name || '') + ' ' + (plan.focus || '');
+  if (/上肢|upper/i.test(label)) return 'upper';
+  if (/下肢|lower/i.test(label)) return 'leg';
   if (/拉|背/.test(label)) return 'pull';
   if (/推|胸|肩/.test(label)) return 'push';
-  if (/腿|下肢|蹲|硬拉/.test(label)) return 'leg';
-  const score = { leg: 0, push: 0, pull: 0 };
+  if (/腿|蹲|硬拉/.test(label)) return 'leg';
+  let score = { leg: 0, push: 0, pull: 0 };
   plan.exercises.forEach(e => {
     const id = e && e.exId;
     if (GUIDE_LEG_IDS.indexOf(id) >= 0) score.leg += 1;
@@ -2418,16 +2437,18 @@ function guideTypeForPlan(plan) {
       else if (['背', '肱二头肌'].indexOf(g) >= 0) score.pull += 1;
     }
   });
+  if (score.leg > score.push + score.pull) return 'leg';
+  if (score.push > 0 && score.pull > 0) return 'upper';
   if (score.leg >= score.push && score.leg >= score.pull) return 'leg';
   return score.push >= score.pull ? 'push' : 'pull';
 }
 function warmupForPlan(plan) {
   const type = guideTypeForPlan(plan);
-  return WARMUP_TEXTS[type] || WARMUP_TEXTS.leg;
+  return WARMUP_TEXTS[type] || WARMUP_TEXTS.upper || WARMUP_TEXTS.leg;
 }
 function stretchForPlan(plan) {
   const type = guideTypeForPlan(plan);
-  return STRETCH_TEXTS[type] || STRETCH_TEXTS.leg;
+  return STRETCH_TEXTS[type] || STRETCH_TEXTS.upper || STRETCH_TEXTS.leg;
 }
 
 /* 计划量核算（文档第 10 节：每周训练量概览） */
@@ -2435,22 +2456,22 @@ function stretchForPlan(plan) {
 const PLAN = JSON.parse(JSON.stringify(PLAN_DEFAULT));
 
 /* 计划版本：内容修订后 +1，旧手机上的本地计划会随版本升级自动换成新版 */
-const PLAN_VERSION = 7;
+const PLAN_VERSION = 10;
 
 /* 默认计划每周工作组总数（用于复盘折算，计划改动后同步） */
 let PLAN_TOTAL_SETS = 80;
 
 const VOLUME_TARGET = [
-  { group: '背', value: 13, note: '强度日 7 + 容量日 6 增肌组；另有 2 组引体技术组不计入' },
-  { group: '胸', value: 13, note: '强度日 8（卧推 5 + 上斜 3）+ 容量日 5' },
-  { group: '肩', value: 12, note: '推举 3、推肩 2、侧平举 3、后束 + 面拉 4' },
-  { group: '股四头肌', value: 12, note: '深蹲 5、分腿蹲 2、哈克 3、腿屈伸 2' },
-  { group: '腘绳肌', value: 6, note: '直接 6 组：硬拉 3 + 腿弯举 3；臀推与深蹲另有刺激' },
-  { group: '核心', value: 8, note: '腹轮、悬垂举膝、负重卷腹、Pallof 各 2 组' },
-  { group: '肱二头肌', value: 4, note: '直接 4 组；15 组拉类另有间接刺激' },
-  { group: '肱三头肌', value: 4, note: '直接 4 组；13 组推类另有间接刺激' },
-  { group: '小腿', value: 4, note: '两次提踵；深蹲/哈克另有支撑期负荷，弱项可加到 6 组' },
-  { group: '臀', value: 2, note: '仅计臀推；深蹲、分腿蹲、硬拉另有大量间接刺激' }
+  { group: '背', value: 18, note: '拉 A 10 + 拉 B 8：垂直拉与水平拉各两次' },
+  { group: '胸', value: 17, note: '推 A 11 + 推 B 6：卧推/上斜/器械推胸' },
+  { group: '肩', value: 10, note: '推 A 5 + 推 B 5：推肩、侧平举、面拉' },
+  { group: '股四头肌', value: 12, note: '腿 A 10 + 腿 B 5：深蹲、腿举、哈克' },
+  { group: '腘绳肌', value: 12, note: '腿 A 6 + 腿 B 6：RDL、硬拉、腿弯举' },
+  { group: '核心', value: 4, note: '腿 A 2 + 腿 B 2：腹轮、负重卷腹' },
+  { group: '肱二头肌', value: 6, note: '拉 A 3 + 拉 B 3；拉类动作另有间接刺激' },
+  { group: '肱三头肌', value: 6, note: '推 A 2 + 推 B 4；推类动作另有间接刺激' },
+  { group: '小腿', value: 6, note: '两次提踵各 3 组；弱项可加到 8 组' },
+  { group: '臀', value: 0, note: '深蹲、RDL、硬拉已覆盖髋伸；需要可自行加臀推' }
 ];
 
 const NUTRITION = {
@@ -2522,6 +2543,23 @@ function numOrNull(v) {
 function validDateKey(v) {
   const s = String(v == null ? '' : v);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : todayKey();
+}
+const FREEZE_REASONS = { exam: '考试', fitness: '体测', sick: '生病', travel: '出差', busy: '太忙', other: '其他' };
+function freezeReasonLabel(reason) { return FREEZE_REASONS[reason] || FREEZE_REASONS.other; }
+function activeFreeze() {
+  return DB && DB.freeze && /^\d{4}-\d{2}-\d{2}$/.test(DB.freeze.start || '') && DB.freeze.end ? DB.freeze : null;
+}
+function isFrozenDate(k) {
+  const f = activeFreeze();
+  return !!(f && f.start <= k && k <= f.end);
+}
+function freezeState() {
+  const f = activeFreeze();
+  if (!f) return 'none';
+  const today = todayKey();
+  if (today < f.start) return 'upcoming';
+  if (today > f.end) return 'ended';
+  return 'active';
 }
 function safeClone(value, depth) {
   const level = depth || 0;
@@ -2640,6 +2678,16 @@ function normalizeDB(raw) {
   out.mainLifts = Array.isArray(clean.mainLifts)
     ? clean.mainLifts.filter(id => typeof id === 'string' && SAFE_ID_RE.test(id)).slice(0, 4)
     : [];
+  out.freeze = clean.freeze && typeof clean.freeze === 'object'
+    ? {
+        id: safeString(clean.freeze.id, 80) || uid('fz'),
+        start: /^\d{4}-\d{2}-\d{2}$/.test(clean.freeze.start || '') ? clean.freeze.start : todayKey(),
+        end: /^\d{4}-\d{2}-\d{2}$/.test(clean.freeze.end || '') ? clean.freeze.end : todayKey(),
+        reason: ['exam', 'fitness', 'sick', 'travel', 'busy', 'other'].indexOf(clean.freeze.reason) >= 0 ? clean.freeze.reason : 'other',
+        note: safeString(clean.freeze.note, 80),
+        createdAt: safeString(clean.freeze.createdAt, 40) || new Date().toISOString()
+      }
+    : null;
   out.settings = sanitizeSettings(clean.settings);
   out.updatedAt = typeof clean.updatedAt === 'string' ? clean.updatedAt : null;
   out.planVer = Number.isFinite(Number(clean.planVer)) ? Number(clean.planVer) : PLAN_VERSION;
@@ -2757,7 +2805,7 @@ const DEFAULT_SETTINGS = {
 };
 
 function emptyDB() {
-  return { version: 1, updatedAt: null, settings: Object.assign({}, DEFAULT_SETTINGS), sessions: [], runs: [], body: [], checkins: [], customEx: [], planCustomized: false, planBackup: null, mainLifts: [] };
+  return { version: 1, updatedAt: null, settings: Object.assign({}, DEFAULT_SETTINGS), sessions: [], runs: [], body: [], checkins: [], customEx: [], planCustomized: false, planBackup: null, mainLifts: [], freeze: null };
 }
 const DEFAULT_MAIN_LIFTS = ['bench', 'squat', 'latpull', 'rdl'];
 function mainLiftIds() {
@@ -2793,21 +2841,12 @@ function loadDB() {
           planVer: parsed.planVer || null,
           savedAt: new Date().toISOString()
         };
-        if (!DB.plan) DB.plan = defaultPlanData();
-        WEEK_ORDER.forEach(k => {
-          if (!DB.plan[k]) DB.plan[k] = defaultPlanData()[k];
-          if (!DB.plan[k].warmup) DB.plan[k].warmup = PLAN_DEFAULT[k].warmup || '';
-          if (!DB.plan[k].stretch) DB.plan[k].stretch = PLAN_DEFAULT[k].stretch || '';
-        });
+        // 科学版计划 V8：升级时应用新模板；旧计划完整保存在 planBackup，可手动恢复。
+        DB.plan = defaultPlanData();
+        DB.planCustomized = false;
         DB.planVer = PLAN_VERSION;
         DB.planUpdated = true;
         saveDB(true, { preserveTimestamp: true });
-      }
-      // 旧数据没有 planCustomized 标记；与当前默认计划不同则视为用户自定义计划
-      if (DB.plan && !DB.planCustomized) {
-        try {
-          if (JSON.stringify(DB.plan) !== JSON.stringify(defaultPlanData())) DB.planCustomized = true;
-        } catch (e) {}
       }
       return;
     }
@@ -3283,6 +3322,17 @@ function resetPlan() {
   DB.planCustomized = false;
   buildPlan();
   saveDB(true);
+}
+
+function restorePlanBackup() {
+  const b = DB.planBackup && DB.planBackup.plan;
+  if (!b) return false;
+  DB.plan = JSON.parse(JSON.stringify(b));
+  DB.planVer = PLAN_VERSION;
+  DB.planCustomized = true;
+  buildPlan();
+  saveDB(true);
+  return true;
 }
 
 function planTotals(day) {
@@ -4040,8 +4090,35 @@ function defaultPlanEntry(exId) {
   };
 }
 
-function startWorkout(dayKey, opts) {
-  opts = opts || {};
+function startFreeform() {
+  primeAudio();
+  const existing = activeSession();
+  if (existing) { openWorkout(existing.id); toast('先继续当前训练'); return; }
+  const now = new Date().toISOString();
+  const s = {
+    id: uid('s'),
+    date: todayKey(),
+    dayKey: dayKeyOf(parseKey(todayKey())),
+    dayName: '随手练',
+    focus: '自由记录 · 不跟计划',
+    status: 'in_progress',
+    startedAt: now,
+    realStart: Date.now(),
+    endedAt: null,
+    exIndex: 0,
+    setIndex: 0,
+    phase: 'Freeform',
+    exercises: [],
+    timer: null,
+    backfill: false,
+    freeform: true
+  };
+  DB.sessions.push(s);
+  saveDB(true);
+  openWorkout(s.id);
+}
+
+function startWorkout(dayKey, opts) {  opts = opts || {};
   primeAudio();
   const existing = activeSession();
   if (existing) {
@@ -4246,8 +4323,17 @@ function syncRestButtons() {
 
 /* ---------------- 渲染 ---------------- */
 function currentEx(s) { return s.exercises[s.exIndex]; }
-function renderGuide(title, text, sub) {
-  const lines = String(text || '').split('\n').map(x => x.trim()).filter(Boolean);
+function renderFreeform(s) {
+  return '<div class="freeform-page fade-in">' +
+    '<div class="guide-eyebrow">随手练</div>' +
+    '<h2 style="font-size:26px;line-height:1.25;margin:0 0 10px">只记录，不跟计划</h2>' +
+    '<p class="f13 mut" style="line-height:1.8;margin:0 0 18px">想练什么就加什么，组数和动作都由你决定。随手练不会改变计划模板，也不计入计划完成率。</p>' +
+    '<button class="btn primary block" data-act="freeform-add">添加第一个动作</button>' +
+    '<div class="f11 mut" style="margin-top:10px;line-height:1.6">添加动作后照常点「完成本组」记录；可以随时再加动作或临时组。</div>' +
+  '</div>';
+}
+
+function renderGuide(title, text, sub) {  const lines = String(text || '').split('\n').map(x => x.trim()).filter(Boolean);
   return '<div class="guide-page fade-in">' +
     '<div class="guide-eyebrow">' + esc(title) + '</div>' +
     (sub ? '<div class="guide-sub">' + esc(sub) + '</div>' : '') +
@@ -4292,7 +4378,12 @@ function renderWorkout() {
 
   let body = '', foot = '';
 
-  if (s.phase === 'Warmup') {
+  if (s.phase === 'Freeform') {
+    body = renderFreeform(s);
+    foot = '<div class="wk-foot">' +
+      '<button class="btn primary" data-act="freeform-add">添加动作</button>' +
+      '<div class="wk-sub"><button data-act="freeform-finish">结束随手练</button></div></div>';
+  } else if (s.phase === 'Warmup') {
     body = renderGuide('热身建议', s.warmup);
     foot = '<div class="wk-foot">' +
       '<button class="btn primary" data-act="warmup-done">热身完成 · 进入正式动作</button>' +
@@ -4593,7 +4684,7 @@ function renderSummary(s) {
   return '' +
     '<div class="finish fade-in">' +
       '<div class="badge">' + icon('check') + '</div>' +
-      '<h2>' + (s.status === 'aborted' ? '训练已结束' : '训练完成') + '</h2>' +
+      '<h2>' + (s.freeform ? '随手练记录完成' : (s.status === 'aborted' ? '训练已结束' : '训练完成')) + '</h2>' +
       '<p>' + fmtCN(s.date) + ' · ' + esc(s.dayName) + (s.status === 'aborted' ? ' · 未完成' : '') + '</p>' +
     '</div>' +
     '<div class="summary-grid">' +
@@ -4668,6 +4759,26 @@ function nextTrainingDay(fromDate) {
 /* 动作间休息：换器械、调重量、走到下一台器械的时间，不短于 90 秒 */
 function betweenExRest(ex) {
   return Math.max(90, ex.rest || 90);
+}
+
+function finishFreeform() {
+  const s = WK.session;
+  if (!s || !s.freeform) return;
+  const hasSets = s.exercises.some(ex => ex.sets.some(st => st.status === 'completed'));
+  confirmDialog({
+    title: '结束随手练？',
+    desc: hasSets ? '已记录的组会保存在历史里。' : '还没有记录任何组，结束后这次随手练会标记为未完成。',
+    confirmText: '结束随手练'
+  }).then(ok => {
+    if (!ok) return;
+    s.phase = 'WorkoutComplete';
+    s.status = hasSets ? 'completed' : 'aborted';
+    s.endedAt = new Date().toISOString();
+    s.timer = null;
+    stopTick();
+    saveDB(true);
+    renderWorkout();
+  });
 }
 
 function finishWarmup() {
@@ -4835,7 +4946,8 @@ function nextExercise() {
   const ex = currentEx(s);
   if (ex && ex.status !== 'skipped') ex.status = 'done';
   if (s.exIndex >= s.exercises.length - 1) {
-    s.phase = 'Stretch';
+    s.phase = s.freeform ? 'WorkoutComplete' : 'Stretch';
+    if (s.freeform) { s.status = 'completed'; s.endedAt = new Date().toISOString(); }
     s.timer = null;
     stopTick();
     saveDB(true);
@@ -4867,7 +4979,8 @@ function skipExercise() {
     s.timer = null;
     stopTick();
     if (s.exIndex >= s.exercises.length - 1) {
-      s.phase = 'Stretch';
+      s.phase = s.freeform ? 'WorkoutComplete' : 'Stretch';
+      if (s.freeform) { s.status = 'completed'; s.endedAt = new Date().toISOString(); }
       s.timer = null;
       stopTick();
       saveDB(true);
@@ -5018,6 +5131,12 @@ function applyAddExercise(id) {
   const s = WK.session;
   if (!s || !LIB[id]) return;
   s.exercises.push(makeExerciseFromPlan(defaultPlanEntry(id)));
+  if (s.freeform && s.phase === 'Freeform') {
+    s.phase = 'SetActive';
+    s.exIndex = s.exercises.length - 1;
+    s.setIndex = 0;
+    s.exercises[s.exIndex].status = 'active';
+  }
   saveDB(true);
   renderWorkout();
   toast('已加入：' + LIB[id].name);
@@ -5184,13 +5303,14 @@ function openMenu() {
     body: '<div class="optlist">' + items.map((it, i) =>
       '<button data-m="' + i + '"><div class="grow"><div class="nm">' + it.label + '</div>' +
       '<div class="sub">' + esc(it.sub) + '</div></div><span class="chev">' + icon('chev') + '</span></button>').join('') +
-      '</div><div class="optlist" style="margin-top:6px"><button data-end="1"><div class="grow"><div class="nm" style="color:var(--danger)">结束本次训练</div>' +
-      '<div class="sub">保存已完成组，标记为未完成</div></div></button></div>',
+      '</div><div class="optlist" style="margin-top:6px"><button data-end="1"><div class="grow"><div class="nm" style="color:var(--danger)">' +
+      (s.freeform ? '结束随手练' : '结束本次训练') + '</div>' +
+      '<div class="sub">' + (s.freeform ? '保存已记录的组，结束这次随手练' : '保存已完成组，标记为未完成') + '</div></div></button></div>',
     onMount: (mask, close) => {
       mask.querySelectorAll('[data-m]').forEach(b => {
         b.onclick = () => { close(); setTimeout(() => items[Number(b.dataset.m)].act(), 180); };
       });
-      mask.querySelector('[data-end]').onclick = () => { close(); setTimeout(endWorkoutEarly, 180); };
+      mask.querySelector('[data-end]').onclick = () => { close(); setTimeout(s.freeform ? finishFreeform : endWorkoutEarly, 180); };
     }
   });
 }
@@ -5302,6 +5422,8 @@ function flashSaved() {
     if (!btn) return;
     const act = btn.dataset.act;
     if (act === 'close') closeWorkoutLayer();
+    else if (act === 'freeform-add') addExerciseSheet();
+    else if (act === 'freeform-finish') finishFreeform();
     else if (act === 'warmup-done' || act === 'skip-warmup') finishWarmup();
     else if (act === 'stretch-done' || act === 'skip-stretch') finishStretch();
     else if (act === 'complete-set') completeSet();
@@ -5397,6 +5519,8 @@ function renderHome() {
   const todayDone = sessionsOn(today).filter(s => s.status === 'completed');
   const isRest = plan.exercises.length === 0;
   const inProgressToday = todayDone.length === 0 && active && active.date === today;
+  const freeze = activeFreeze();
+  const fstate = freezeState();
 
   let hero = '';
 
@@ -5405,6 +5529,7 @@ function renderHome() {
     const doneSets = sessionDoneSets(active);
     const totalSets = sessionSetCount(active);
     let phaseText = '训练进行中';
+    if (active.freeform && active.phase === 'Freeform') phaseText = '随手练中 · 自由记录';
     if (active.phase === 'Warmup') phaseText = '热身中 · 准备开始';
     if (active.phase === 'Resting') phaseText = '休息中 · 已完成第 ' + (active.setIndex + 1) + ' 组';
     if (active.phase === 'RestFinished') phaseText = '休息结束，等待开始下一组';
@@ -5421,6 +5546,30 @@ function renderHome() {
         '</div>' +
         '<div style="margin-bottom:14px">' + '<div class="bar"><i style="width:' + (doneSets / Math.max(1, totalSets) * 100) + '%"></i></div>' + '</div>' +
         '<button class="btn primary block" data-go="resume">继续训练' + icon('play') + '</button>' +
+      '</div>';
+  } else if (fstate === 'active') {
+    hero =
+      '<div class="hero freeze-hero">' +
+        '<div class="hero-top">❄️ 计划冻结中</div>' +
+        '<h2>先忙正事<small>训练可以暂停</small></h2>' +
+        '<div class="focus">' + fmtCN(freeze.start, true) + ' – ' + fmtCN(freeze.end, true) + ' · ' + esc(freezeReasonLabel(freeze.reason)) + '</div>' +
+        '<div class="f12" style="line-height:1.8;margin:10px 0 14px;color:var(--text-2)">冻结期间没有缺失天数，不计完成率；不用补练。结束后从下一个训练日继续。</div>' +
+        '<div class="flex gap8" style="flex-wrap:wrap">' +
+          '<button class="btn" style="flex:1 1 140px" data-freeze-edit>修改日期</button>' +
+          '<button class="btn ghost" style="flex:1 1 140px" data-freeze-end>提前结束</button>' +
+        '</div>' +
+        '<button class="btn ghost block" style="margin-top:8px" data-freeze-train>今天想动一次（可选）</button>' +
+      '</div>';
+  } else if (fstate === 'ended') {
+    hero =
+      '<div class="hero freeze-hero ended">' +
+        '<div class="hero-top">❄️ 冻结已结束</div>' +
+        '<h2>欢迎回来<small>不用补之前的训练</small></h2>' +
+        '<div class="focus">下一次从今天或下一个训练日继续，状态可以慢慢找回。</div>' +
+        '<div class="flex gap8" style="margin-top:14px;flex-wrap:wrap">' +
+          '<button class="btn primary" style="flex:1 1 140px" data-freeze-dismiss>从下一次训练继续</button>' +
+          '<button class="btn ghost" style="flex:1 1 140px" data-freeze-extend>再休息一周</button>' +
+        '</div>' +
       '</div>';
   } else if (todayDone.length) {
     const s = todayDone[0];
@@ -5494,6 +5643,7 @@ function renderHome() {
   const quick =
     '<div class="quick-row">' +
       '<button data-quick="backfill">' + icon('calendar') + '补记训练</button>' +
+      '<button data-quick="freeform">' + icon('bolt') + '随手练</button>' +
       '<button data-quick="run">' + icon('activity') + '记录跑步</button>' +
       '<button data-quick="plan">' + icon('sliders') + '编辑计划</button>' +
     '</div>';
@@ -5535,11 +5685,13 @@ function renderWeekStrip(today) {
     const plan = PLAN[dk];
     const done = DB.sessions.some(s => s.date === k && s.status === 'completed');
     const isToday = k === today;
+    const frozen = isFrozenDate(k);
     let cls = 'wd';
     if (done) cls += ' done';
     if (isToday) cls += ' today';
+    if (frozen && !done) cls += ' frozen';
     if (!plan.exercises.length) cls += ' rest';
-    else if (!done && k < today && DB.sessions.length) cls += ' missed';
+    else if (!done && !frozen && k < today && DB.sessions.length) cls += ' missed';
     html += '<button class="' + cls + '" data-week-day="' + k + '" aria-label="' + fmtCN(k) + '">' +
       '<div class="d">' + WEEK_LABEL[dk].replace('周', '') + '</div>' +
       '<div class="dot"></div>' +
@@ -5724,14 +5876,116 @@ function bindHome() {
   $$('[data-quick]').forEach(b => b.addEventListener('click', () => {
     const q = b.dataset.quick;
     if (q === 'backfill') openBackfillSheet(todayKey());
+    else if (q === 'freeform') startFreeform();
     else if (q === 'run') addRunSheet(todayKey());
     else if (q === 'plan') openPlanEditor();
   }));
+
+  const freezeEdit = $('[data-freeze-edit]');
+  if (freezeEdit) freezeEdit.onclick = openFreezeSheet;
+  const freezeEnd = $('[data-freeze-end]');
+  if (freezeEnd) freezeEnd.onclick = freezeEndEarly;
+  const freezeTrain = $('[data-freeze-train]');
+  if (freezeTrain) freezeTrain.onclick = chooseDaySheet;
+  const freezeDismiss = $('[data-freeze-dismiss]');
+  if (freezeDismiss) freezeDismiss.onclick = freezeDismiss;
+  const freezeExtend = $('[data-freeze-extend]');
+  if (freezeExtend) freezeExtend.onclick = freezeExtendWeek;
 
   $$('[data-ex-detail]').forEach(row => row.addEventListener('click', () => {
     showExerciseDetail(row.dataset.exDetail);
   }));
 
+}
+
+/* ---------------- 计划冻结 ----------------
+   冻结不是删除计划，而是让这段时间不产生“缺失天/完成率惩罚”。
+   开始日期默认回填到本周一，解决“已经缺了几天才想起来暂停”的负担感。 */
+function openFreezeSheet() {
+  if (activeSession()) { toast('先结束当前训练，再冻结计划'); return; }
+  const existing = activeFreeze();
+  const today = todayKey();
+  const monday = dateKey(startOfWeek(new Date()));
+  const sunday = dateKey(addDays(parseKey(monday), 6));
+  const start = existing ? existing.start : monday;
+  const end = existing ? existing.end : (sunday < today ? today : sunday);
+  let reason = existing ? existing.reason : 'exam';
+  const reasons = Object.keys(FREEZE_REASONS).map(k =>
+    '<button data-fz-reason="' + k + '" class="' + (reason === k ? 'on' : '') + '">' + FREEZE_REASONS[k] + '</button>').join('');
+  openSheet({
+    title: existing ? '修改计划冻结' : '冻结训练计划',
+    desc: '冻结期间没有缺失天数，不计完成率，也不用补练',
+    body:
+      '<div class="field"><label>开始日期</label><div class="ctrl"><input id="fz-start" type="date" value="' + start + '"></div></div>' +
+      '<div class="field" style="margin-top:10px"><label>结束日期</label><div class="ctrl"><input id="fz-end" type="date" value="' + end + '"></div></div>' +
+      '<div class="f12 mut" style="margin-top:8px;line-height:1.65">默认从本周一开始，算作整周暂停。结束后从下一个训练日继续，不需要补练。</div>' +
+      '<div class="ex-field" style="margin-top:14px"><label>原因</label><div class="chiprow wrap" id="fz-reasons">' + reasons + '</div></div>' +
+      '<div class="ex-field"><label>备注（可选）</label><input class="input" id="fz-note" maxlength="80" value="' + esc(existing ? existing.note || '' : '') + '"></div>' +
+      '<div class="note mt12">' + icon('info') + '<span>冻结只影响计划和统计，不删除任何训练记录。冻结期间想练也可以。</span></div>',
+    actions: [
+      { label: '取消', cls: 'ghost' },
+      {
+        label: existing ? '保存修改' : '冻结计划', cls: 'primary', onClick: () => {
+          const startV = $('#fz-start').value;
+          const endV = $('#fz-end').value;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(startV) || !/^\d{4}-\d{2}-\d{2}$/.test(endV)) { toast('请选择有效日期'); return false; }
+          if (endV < startV) { toast('结束日期不能早于开始日期'); return false; }
+          DB.freeze = {
+            id: existing ? existing.id : uid('fz'),
+            start: startV,
+            end: endV,
+            reason: reason,
+            note: ($('#fz-note').value || '').trim().slice(0, 80),
+            createdAt: existing ? existing.createdAt : new Date().toISOString()
+          };
+          saveDB(true);
+          renderCurrentTab();
+          toast('计划已冻结；这段时间不用补练');
+        }
+      }
+    ],
+    onMount: (mask) => {
+      mask.querySelectorAll('[data-fz-reason]').forEach(b => b.onclick = () => {
+        reason = b.dataset.fzReason;
+        mask.querySelectorAll('[data-fz-reason]').forEach(x => x.classList.toggle('on', x === b));
+      });
+    }
+  });
+}
+
+function freezeEndEarly() {
+  const f = activeFreeze();
+  if (!f) return;
+  confirmDialog({
+    title: '提前结束冻结？',
+    desc: '结束后的今天开始恢复正常计划；已经过去的冻结日仍然不算缺失天。',
+    confirmText: '结束冻结'
+  }).then(ok => {
+    if (!ok) return;
+    const yesterday = dateKey(addDays(parseKey(todayKey()), -1));
+    if (yesterday < f.start) DB.freeze = null;
+    else DB.freeze.end = yesterday;
+    saveDB(true);
+    renderCurrentTab();
+    toast('已结束冻结，接下来从下一个训练日继续');
+  });
+}
+
+function freezeDismiss() {
+  DB.freeze = null;
+  saveDB(true);
+  renderCurrentTab();
+  toast('已恢复计划，想做时再开始');
+}
+
+function freezeExtendWeek() {
+  const f = activeFreeze();
+  if (!f) return;
+  const base = f.end < todayKey() ? todayKey() : f.end;
+  f.end = dateKey(addDays(parseKey(base), 7));
+  saveDB(true);
+  renderCurrentTab();
+  toast('已再休息一周');
 }
 
 function chooseDaySheet() {
@@ -5810,9 +6064,11 @@ function renderHistory() {
     const done = DB.sessions.some(s => s.date === k && s.status === 'completed');
     const run = DB.runs.some(r => r.date === k);
     const planned = PLAN[dayKeyOf(parseKey(k))].exercises.length > 0;
+    const frozen = isFrozenDate(k);
     let cls = 'cal-d';
     if (done) cls += ' done';
     else if (run) cls += ' run';
+    else if (frozen) cls += ' frozen';
     else if (planned && k < today && DB.sessions.length) cls += ' miss';
     if (k === today) cls += ' today';
     if (k === UI.selectedDate) cls += ' sel';
@@ -5834,6 +6090,7 @@ function renderHistory() {
       '<div class="legend" style="margin-top:12px">' +
         '<span><i style="background:var(--accent)"></i>力量训练</span>' +
         '<span><i style="background:var(--blue)"></i>跑步</span>' +
+        '<span><i style="background:rgba(0,0,0,.08)"></i>计划冻结</span>' +
         '<span><i style="background:rgba(0,0,0,.22)"></i>计划未记录</span>' +
       '</div>' +
     '</div>' +
@@ -5856,12 +6113,17 @@ function renderDayDetail(k) {
 
   if (!list.length && !runs.length) {
     const plan = PLAN[dayKeyOf(parseKey(k))];
-    html += '<div class="card">' +
-      emptyBlock(plan.exercises.length ? '这天没有训练记录（计划：' + plan.name + '）' : '恢复日，无训练记录', 'calendar') +
-      '<div class="flex gap8 mt12">' +
-        '<button class="btn sm grow" data-backfill="' + k + '">补记这天训练</button>' +
-        '<button class="btn sm ghost grow" data-add-run="' + k + '">记录跑步</button>' +
-      '</div></div>';
+    if (isFrozenDate(k)) {
+      html += '<div class="card"><div class="freeze-day-note">❄️ 计划冻结中 · ' + esc(freezeReasonLabel((activeFreeze() || {}).reason)) +
+        '<div class="f12 mut" style="margin-top:4px">这天不需要训练，也不会被记为缺失。</div></div></div>';
+    } else {
+      html += '<div class="card">' +
+        emptyBlock(plan.exercises.length ? '这天没有训练记录（计划：' + plan.name + '）' : '恢复日，无训练记录', 'calendar') +
+        '<div class="flex gap8 mt12">' +
+          '<button class="btn sm grow" data-backfill="' + k + '">补记这天训练</button>' +
+          '<button class="btn sm ghost grow" data-add-run="' + k + '">记录跑步</button>' +
+        '</div></div>';
+    }
   }
 
   list.forEach(s => {
@@ -6212,8 +6474,16 @@ function weekPlannedSets(week) {
   WEEK_ORDER.forEach((k, i) => {
     const d = dateKey(addDays(parseKey(week.start), i));
     if (isCur && d > todayKey()) return;
+    if (isFrozenDate(d)) return;
     n += PLAN[k].exercises.reduce((a, e) => a + e.sets, 0);
   });
+  return n;
+}
+function weekFrozenDays(week) {
+  let n = 0;
+  for (let i = 0; i < 7; i++) {
+    if (isFrozenDate(dateKey(addDays(parseKey(week.start), i)))) n++;
+  }
   return n;
 }
 
@@ -6234,8 +6504,11 @@ function renderStats() {
   const mainIds = mainLiftIds();
   const activeLift = mainIds.indexOf(UI.liftTab) >= 0 ? UI.liftTab : (mainIds[0] || 'bench');
   const sessions = weekSessions(cur.start, cur.end).filter(s => s.status !== 'in_progress');
-  const doneSets = sessions.reduce((n, s) => n + sessionDoneSets(s), 0);
+  const planSessions = sessions.filter(s => !s.freeform);
+  const doneSets = planSessions.reduce((n, s) => n + sessionDoneSets(s), 0);
   const plannedSets = weekPlannedSets(cur);
+  const frozenWeek = weekFrozenDays(cur) >= 7;
+  const onlyFreeform = sessions.length > 0 && planSessions.length === 0;
   const rate = Math.min(100, Math.round(doneSets / Math.max(1, plannedSets) * 100));
   const showWeeks = dataWeeks(weeks);
   const runs = DB.runs.filter(r => r.date >= cur.start && r.date <= cur.end);
@@ -6263,10 +6536,10 @@ function renderStats() {
       '<button class="btn sm block mt12" data-add-body="1">记录今天（体重 / 睡眠 / 疲劳）</button>' +
     '</div>' +
     '<div class="stat-grid">' +
-      statCard('本周完成率', rate + '<small>%</small>',
-        (doneSets === 0 && !DB.sessions.length ? (isCurrentWeek(cur) ? '截至今天 ' : '全周 ') + plannedSets + ' 组'
-          : doneSets + ' / ' + plannedSets + ' 组') + (isCurrentWeek(cur) && DB.sessions.length ? ' · 进行中' : ''),
-        rate >= 80 ? 'up' : '') +
+      statCard('本周完成率', frozenWeek ? '暂停' : onlyFreeform ? '—' : rate + '<small>%</small>',
+        frozenWeek ? '计划冻结中，不计完成率' : onlyFreeform ? '仅随手练，不计计划完成率' : (doneSets === 0 && !DB.sessions.length ? (isCurrentWeek(cur) ? '截至今天 ' : '全周 ') + plannedSets + ' 组'
+          : doneSets + ' / ' + plannedSets + ' 组') + (isCurrentWeek(cur) && DB.sessions.length && !frozenWeek ? ' · 进行中' : ''),
+        rate >= 80 && !frozenWeek && !onlyFreeform ? 'up' : '') +
       statCard('训练次数', sessions.filter(s => s.status === 'completed').length + '<small>次</small>',
         '全周 ' + WEEK_ORDER.filter(k => PLAN[k] && PLAN[k].exercises.length).length + ' 次', '') +
       statCard('跑步', runMin + '<small>分钟</small>', runKm > 0 ? runKm.toFixed(1) + ' km · 独立统计' : '暂无距离记录', '') +
@@ -6475,13 +6748,31 @@ function renderReviewCard(week) {
 
 function buildReview(week) {
   const sessions = weekSessions(week.start, week.end).filter(s => s.status !== 'in_progress');
-  const doneSets = sessions.reduce((n, s) => n + sessionDoneSets(s), 0);
+  const planSessions = sessions.filter(s => !s.freeform);
+  const doneSets = planSessions.reduce((n, s) => n + sessionDoneSets(s), 0);
   const planned = weekPlannedSets(week);
+  const frozenDays = weekFrozenDays(week);
   const rate = Math.min(100, Math.round(doneSets / Math.max(1, planned) * 100));
   const doneDays = sessions.filter(s => s.status === 'completed').length;
   const partial = isCurrentWeek(week);
   const factor = planned / PLAN_TOTAL_SETS;
   const items = [];
+
+  if (frozenDays >= 7 || (!planned && frozenDays > 0)) {
+    return [{
+      t: '本周计划冻结',
+      b: '这周不要求训练，也不计完成率。冻结结束后从下一个训练日继续，不需要补练。',
+      src: '计划冻结设置'
+    }];
+  }
+
+  if (!planSessions.length && sessions.length) {
+    return [{
+      t: '本周以随手练为主',
+      b: '随手练记录会进入历史、容量和动作趋势，但不计入计划完成率。计划训练可以按自己的节奏重新开始。',
+      src: '随手练记录'
+    }];
+  }
 
   if (!sessions.length) {
     items.push({
@@ -6492,6 +6783,7 @@ function buildReview(week) {
     items.push({
       t: '训练完成率 ' + rate + '%' + (partial ? '（本周进行中）' : ''),
       b: '已完成 ' + doneSets + ' 个工作组（计划 ' + planned + ' 组' + (partial ? '，按已过训练日计算' : '') + '），完成训练 ' + doneDays + ' 天。' +
+        (frozenDays ? ' 本周有 ' + frozenDays + ' 天处于冻结，计划组数已排除这些日期。' : '') +
         (rate >= 85 ? '执行稳定，维持当前安排即可。' : rate >= 65 ? '完成度一般，优先保证主项，辅助动作可各减 1 组。' : '完成度偏低，先降低单日组数，避免因赶进度牺牲动作质量。'),
       src: 'SetLog 中 status=completed 的组数 / 计划工作组总数'
     });
@@ -6949,6 +7241,9 @@ function renderSettings() {
       '<div class="setrow"><div class="grow"><div class="t">主项表现</div>' +
         '<div class="s">选择最多 4 个动作，用于数据页的主项趋势</div></div>' +
         '<button class="btn sm" data-main-lifts="1">选择</button></div>' +
+      '<div class="setrow"><div class="grow"><div class="t">计划冻结</div>' +
+        '<div class="s">' + (freezeState() === 'active' ? '冻结中 · ' + fmtCN(activeFreeze().start, true) + '–' + fmtCN(activeFreeze().end, true) + ' · ' + freezeReasonLabel(activeFreeze().reason) : '考试、体测、生病或太忙时可暂停，不记缺失天') + '</div></div>' +
+        '<button class="btn sm" data-freeze-plan="1">' + (freezeState() === 'active' ? '修改' : '冻结') + '</button></div>' +
     '</div>' +
 
     '<div class="card">' +
@@ -7029,6 +7324,8 @@ function bindSettings() {
   if (typeof bindCloudSettings === 'function') bindCloudSettings();
   const mainBtn = $('[data-main-lifts]');
   if (mainBtn) mainBtn.onclick = openMainLiftSheet;
+  const freezeBtn = $('[data-freeze-plan]');
+  if (freezeBtn) freezeBtn.onclick = openFreezeSheet;
   const t = (act, fn) => { const b = $('[data-act="' + act + '"]'); if (b) b.onclick = fn; };
   t('toggle-unit', () => {
     DB.settings.unit = DB.settings.unit === 'kg' ? 'lb' : 'kg';
@@ -7251,7 +7548,8 @@ function openPlanEditor(startDay) {
         '</div>';
       }).join('') + '</div>' +
       '<div class="note mt12">' + icon('info') + '<span>上下箭头把整天的训练内容移到相邻星期。恢复日也能进入编辑：想加一个散步日或补一个动作都可以。</span></div>' +
-      '<button class="btn ghost block mt12" data-reset-plan="1">恢复默认计划</button>';
+      '<button class="btn ghost block mt12" data-reset-plan="1">恢复默认科学版计划</button>' +
+      (DB.planBackup && DB.planBackup.plan ? '<button class="btn ghost block mt8" data-restore-plan="1">恢复升级前的旧计划</button>' : '');
 
     box.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { dayKey = b.dataset.open; mode = 'day'; paint(); });
     box.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => {
@@ -7269,8 +7567,12 @@ function openPlanEditor(startDay) {
     });
     const rp = box.querySelector('[data-reset-plan]');
     if (rp) rp.onclick = () => confirmDialog({
-      title: '恢复默认计划？', desc: '会还原三分化六练的原始组数、次数、休息与训练日安排，历史记录不受影响。', confirmText: '恢复'
-    }).then(ok => { if (ok) { resetPlan(); paint(); toast('已恢复默认计划'); } });
+      title: '恢复默认科学版计划？', desc: '会还原 4 天上下肢模板的组数、次数、休息与训练日安排，历史记录不受影响。', confirmText: '恢复'
+    }).then(ok => { if (ok) { resetPlan(); paint(); toast('已恢复默认科学版计划'); } });
+    const rbk = box.querySelector('[data-restore-plan]');
+    if (rbk) rbk.onclick = () => confirmDialog({
+      title: '恢复升级前的旧计划？', desc: '会恢复升级时自动备份的计划，当前计划会被替换。', confirmText: '恢复旧计划'
+    }).then(ok => { if (ok && restorePlanBackup()) { paint(); toast('已恢复旧计划'); } });
   }
 
   function paintDay() {
@@ -7950,13 +8252,26 @@ async function cloudPush(session) {
 function cloudApplyRemote(remoteDb) {
   if (!remoteDb) return;
   const localPlan = DB.planCustomized ? DB.plan : null;
+  const localFreeze = DB.freeze || null;
   const liveId = WK.session && WK.session.id;
   cloudSaveSnapshot(DB, remoteDb, 'before-pull');
   cloudApplying = true;
   try {
     DB = normalizeDB(remoteDb);
-    // 用户自己改过的计划优先保留，避免换设备/首次同步把自定义计划洗掉
+    // 云端旧计划升级到当前模板；本机自定义计划优先保留
+    if (DB.planVer !== PLAN_VERSION) {
+      DB.planBackup = {
+        plan: DB.plan ? JSON.parse(JSON.stringify(DB.plan)) : null,
+        planVer: DB.planVer || null,
+        savedAt: new Date().toISOString()
+      };
+      DB.plan = localPlan || defaultPlanData();
+      DB.planCustomized = !!localPlan;
+      DB.planVer = PLAN_VERSION;
+    }
+    // 用户自己改过的计划/刚设置的冻结优先保留
     if (localPlan) { DB.plan = localPlan; DB.planCustomized = true; }
+    if (localFreeze) DB.freeze = localFreeze;
     registerCustomExercises();
     ensurePlanData();
     buildPlan();
@@ -8283,7 +8598,7 @@ function init() {
   if (DB.planUpdated) {
     DB.planUpdated = false;
     saveDB(true);
-    setTimeout(() => { if (typeof toast === 'function') toast('计划已更新：Pallof 改按秒、引体技术组不计入训练量'); }, 700);
+    setTimeout(() => { if (typeof toast === 'function') toast('计划已更新：3 分化 · 拉推腿 A/B，一周六练；可在计划里恢复旧计划'); }, 700);
   }
 
   // 多标签页：其他页面写入了新的 DB 时，不要用本页旧内存继续覆盖

@@ -1411,6 +1411,23 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; min-height:
 /* 随手练 */
 .freeform-page { max-width: 340px; margin: 0 auto; padding-top: 10px; }
 .freeform-page h2 { font-weight: 650; }
+
+/* 周期计划 */
+.hero.cycle-hero { background: linear-gradient(160deg, #20262b, #0e1113 70%); }
+.cycle-hero .hero-top,
+.cycle-hero .focus,
+.cycle-hero .f11 { color: rgba(255,255,255,.72); }
+.cycle-hero .f11 { font-size: 12px; line-height: 1.6; }
+.cycle-hero .btn { color: #fff; }
+.cycle-editor { display: flex; flex-direction: column; gap: 8px; }
+.cycle-row { display: flex; flex-direction: column; gap: 5px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.cycle-row > label { font-size: 11px; color: var(--muted); }
+.cycle-row-top { display: flex; align-items: center; gap: 7px; }
+.cycle-row-top .input { flex: 1; height: 40px; }
+.cycle-no { width: 20px; font-size: 11px; color: var(--muted); text-align: center; }
+.cycle-order { display: flex; gap: 4px; }
+.cycle-order button { width: 36px; height: 40px; border: 1px solid var(--line); background: var(--surface); border-radius: 9px; color: var(--text-2); font-size: 15px; }
+.cycle-row-bottom select.input { width: 100%; height: 40px; padding: 0 8px; }
 /* iOS 聚焦输入框时 >=16px 才不会自动放大 */
 .input, .field .ctrl input, .bf-set-row .input, .cloud-card .cloud-email .input { font-size: 16px; }
 
@@ -2687,6 +2704,22 @@ function normalizeDB(raw) {
         createdAt: safeString(clean.freeze.createdAt, 40) || new Date().toISOString()
       }
     : null;
+  if (clean.cycle && typeof clean.cycle === 'object' && Array.isArray(clean.cycle.days) && clean.cycle.days.length) {
+    const days = clean.cycle.days.slice(0, 30).map((d, i) => ({
+      id: SAFE_ID_RE.test(safeString(d && d.id, 80)) ? safeString(d.id, 80) : 'cd' + i,
+      label: safeString(d && d.label, 20) || ('第 ' + (i + 1) + ' 天'),
+      planKey: safeString(d && d.planKey, 20) || 'rest',
+      type: ['training', 'cardio', 'rest'].indexOf(d && d.type) >= 0 ? d.type : 'training'
+    }));
+    out.cycle = {
+      id: safeString(clean.cycle.id, 80) || uid('cyc'),
+      length: days.length,
+      startDate: /^\d{4}-\d{2}-\d{2}$/.test(clean.cycle.startDate || '') ? clean.cycle.startDate : todayKey(),
+      mode: clean.cycle.mode === 'flexible' ? 'flexible' : 'fixed',
+      runStart: /^\d{4}-\d{2}-\d{2}$/.test(clean.cycle.runStart || '') ? clean.cycle.runStart : todayKey(),
+      days
+    };
+  }
   out.settings = sanitizeSettings(clean.settings);
   out.updatedAt = typeof clean.updatedAt === 'string' ? clean.updatedAt : null;
   out.planVer = Number.isFinite(Number(clean.planVer)) ? Number(clean.planVer) : PLAN_VERSION;
@@ -2804,7 +2837,7 @@ const DEFAULT_SETTINGS = {
 };
 
 function emptyDB() {
-  return { version: 1, updatedAt: null, settings: Object.assign({}, DEFAULT_SETTINGS), sessions: [], runs: [], body: [], checkins: [], customEx: [], planCustomized: false, planBackup: null, mainLifts: [], freeze: null };
+  return { version: 1, updatedAt: null, settings: Object.assign({}, DEFAULT_SETTINGS), sessions: [], runs: [], body: [], checkins: [], customEx: [], planCustomized: false, planBackup: null, mainLifts: [], freeze: null, cycle: null };
 }
 const DEFAULT_MAIN_LIFTS = ['bench', 'squat', 'latpull', 'rdl'];
 function mainLiftIds() {
@@ -4081,7 +4114,8 @@ function wkLock(ms) {
 
 /* ---------------- 创建训练 ---------------- */
 /* dateKey 可选：用于「补记」某一天的训练，缺省为今天 */
-function buildSession(dayKey, dateK) {
+function buildSession(dayKey, dateK, opts) {
+  opts = opts || {};
   const plan = PLAN[dayKey];
   const date = dateK || todayKey();
   const exercises = plan.exercises.map(makeExerciseFromPlan).filter(Boolean);
@@ -4092,7 +4126,10 @@ function buildSession(dayKey, dateK) {
     id: uid('s'),
     date: date,
     dayKey,
-    dayName: plan.name,
+    cycleDayId: opts.cycleDayId || '',
+    cycleMode: opts.cycleMode || '',
+    cycleInstanceStart: opts.cycleInstanceStart || '',
+    dayName: opts.cycleDayLabel || plan.name,
     focus: plan.focus,
     warmup: plan.warmupCustom ? (plan.warmup || '') : (typeof warmupForPlan === 'function' ? warmupForPlan(plan) : (plan.warmup || '')),
     stretch: plan.stretchCustom ? (plan.stretch || '') : (typeof stretchForPlan === 'function' ? stretchForPlan(plan) : (plan.stretch || '')),
@@ -4207,7 +4244,7 @@ function startWorkout(dayKey, opts) {  opts = opts || {};
     toast('这一天没有训练内容，可在计划里添加动作');
     return;
   }
-  const s = buildSession(dayKey, opts.date);
+  const s = buildSession(dayKey, opts.date, opts);
   DB.sessions.push(s);
   saveDB(true);
   openWorkout(s.id);
@@ -5575,8 +5612,12 @@ function pageHeader(title, sub, rightHtml) {
    ========================================================== */
 function renderHome() {
   const today = todayKey();
-  const dk = dayKeyOf(parseKey(today));
-  const plan = PLAN[dk];
+  const flexCycle = typeof cycleIsFlexible === 'function' && cycleIsFlexible();
+  const cycleDay = (!flexCycle && typeof cycleToday === 'function') ? cycleToday() : null;
+  let dk = dayKeyOf(parseKey(today));
+  if (cycleDay) dk = cycleDay.planKey;
+  const plan = PLAN[dk] || { name: '休息日', focus: '恢复', exercises: [], run: null };
+  const dayLabel = cycleDay ? cycleDay.label : (WEEK_LABEL[dk] || '');
   const trainingDays = WEEK_ORDER.filter(k => PLAN[k] && PLAN[k].exercises.length).length;
   const active = activeSession();
   const todayDone = sessionsOn(today).filter(s => s.status === 'completed');
@@ -5584,6 +5625,7 @@ function renderHome() {
   const inProgressToday = todayDone.length === 0 && active && active.date === today;
   const freeze = activeFreeze();
   const fstate = freezeState();
+  const cycleUpcoming = !flexCycle && DB.cycle && DB.cycle.startDate > today;
 
   let hero = '';
 
@@ -5634,6 +5676,16 @@ function renderHome() {
           '<button class="btn ghost" style="flex:1 1 140px" data-freeze-extend>再休息一周</button>' +
         '</div>' +
       '</div>';
+  } else if (cycleUpcoming) {
+    hero =
+      '<div class="hero cycle-hero">' +
+        '<div class="hero-top">📅 周期尚未开始</div>' +
+        '<h2>' + fmtCN(DB.cycle.startDate, true) + ' 开始<small>可以提前看看安排</small></h2>' +
+        '<div class="focus">这之前不显示训练任务，也不计入完成率。可以修改开始日期或周期安排。</div>' +
+        '<button class="btn primary block" style="margin-top:14px" data-cycle-edit>编辑周期</button>' +
+      '</div>';
+  } else if (flexCycle) {
+    hero = renderFlexibleHero();
   } else if (todayDone.length) {
     const s = todayDone[0];
     const doneSets = sessionDoneSets(s);
@@ -5671,7 +5723,7 @@ function renderHome() {
     const hint = progressionHint(plan.exercises[0]);
     hero =
       '<div class="hero">' +
-        '<div class="hero-top">' + icon('bolt') + ' 今日训练 · ' + WEEK_LABEL[dk] + '</div>' +
+        '<div class="hero-top">' + icon('bolt') + ' 今日训练 · ' + esc(dayLabel) + '</div>' +
         '<h2>' + esc(plan.name) + '<small>' + esc(plan.focus) + '</small></h2>' +
         '<div class="focus">' + plan.exercises.length + ' 个动作，先从主项开始，动作质量优先于完成表格。</div>' +
         '<div class="hero-meta">' +
@@ -5684,8 +5736,8 @@ function renderHome() {
       '</div>';
   }
 
-  const strip = renderWeekStrip(today);
-  const list = isRest ? '' : renderPlanPreview(plan, active);
+  const strip = flexCycle ? '' : renderWeekStrip(today);
+  const list = flexCycle ? '' : (isRest ? '' : renderPlanPreview(plan, active));
   const runCard = plan.run ? '<div class="card"><div class="card-title"><h2>' + icon('activity') +
     ' 今日跑步</h2><span class="hint">独立于力量训练</span></div>' +
     '<div class="f13" style="font-weight:550">' + esc(plan.run.title) + '</div>' +
@@ -5711,18 +5763,18 @@ function renderHome() {
       '<button data-quick="plan">' + icon('sliders') + '编辑计划</button>' +
     '</div>';
 
-  return pageHeader('今天', fmtCN(today, true) + ' · ' + WEEK_LABEL[dk],
+  return pageHeader('今天', fmtCN(today, true) + ' · ' + esc(dayLabel),
       '<button class="icon-btn" data-go="plan">' + icon('note') + '</button>') +
     staleBanner +
     hero +
     quick +
     renderBodyCard(today) +
-    '<div class="card" style="padding:14px 14px 12px">' +
+    (strip ? '<div class="card" style="padding:14px 14px 12px">' +
       '<div class="flex between aic" style="margin-bottom:4px">' +
         '<span class="f12 mut">本周安排</span>' +
         '<span class="f12 mut">已完成 ' + weekDoneSessions() + ' / ' + trainingDays + '</span>' +
       '</div>' + strip +
-    '</div>' +
+    '</div>' : '') +
     list +
     runCard +
     renderRecent();
@@ -5744,8 +5796,10 @@ function renderWeekStrip(today) {
   for (let i = 0; i < 7; i++) {
     const d = addDays(monday, i);
     const k = dateKey(d);
-    const dk = WEEK_ORDER[i];
-    const plan = PLAN[dk];
+    const cd = typeof cycleDayForDate === 'function' ? cycleDayForDate(k) : null;
+    const dk = cd ? cd.planKey : WEEK_ORDER[i];
+    const plan = PLAN[dk] || { exercises: [] };
+    const label = cd ? cd.label : (WEEK_LABEL[dk] || '');
     const done = DB.sessions.some(s => s.date === k && s.status === 'completed');
     const isToday = k === today;
     const frozen = isFrozenDate(k);
@@ -5756,7 +5810,7 @@ function renderWeekStrip(today) {
     if (!plan.exercises.length) cls += ' rest';
     else if (!done && !frozen && k < today && DB.sessions.length) cls += ' missed';
     html += '<button class="' + cls + '" data-week-day="' + k + '" aria-label="' + fmtCN(k) + '">' +
-      '<div class="d">' + WEEK_LABEL[dk].replace('周', '') + '</div>' +
+      '<div class="d">' + esc(String(label).replace('周', '')) + '</div>' +
       '<div class="dot"></div>' +
       '<div class="t">' + d.getDate() + '</div>' +
     '</button>';
@@ -5902,7 +5956,15 @@ function bindHome() {
   $$('[data-go]').forEach(btn => {
     btn.addEventListener('click', () => {
       const go = btn.dataset.go;
-      if (go === 'start') startWorkout(dayKeyOf(parseKey(todayKey())));
+      if (go === 'start') {
+        const cd = typeof cycleToday === 'function' ? cycleToday() : null;
+        startWorkout(cd ? cd.planKey : dayKeyOf(parseKey(todayKey())), cd ? {
+          cycleDayId: cd.id,
+          cycleDayLabel: cd.label,
+          cycleMode: DB.cycle && DB.cycle.mode,
+          cycleInstanceStart: typeof cycleInstanceStartForDate === 'function' ? cycleInstanceStartForDate(todayKey()) : (DB.cycle && (DB.cycle.runStart || DB.cycle.startDate))
+        } : {});
+      }
       else if (go === 'resume') { const a = activeSession(); if (a) openWorkout(a.id); }
       else if (go === 'choose') chooseDaySheet();
       else if (go === 'plan') showPlanOverview();
@@ -5910,6 +5972,20 @@ function bindHome() {
       else if (go === 'history') { UI.tab = 'history'; UI.selectedDate = todayKey(); UI.historyMonth = new Date(); renderCurrentTab(); }
     });
   });
+  $$('[data-cycle-start]').forEach(b => b.addEventListener('click', () => {
+    const c = DB.cycle;
+    if (!c) return;
+    const day = c.days.find(d => d.id === b.dataset.cycleStart);
+    if (!day) return;
+    startWorkout(day.planKey, {
+      cycleDayId: day.id,
+      cycleDayLabel: day.label,
+      cycleMode: c.mode,
+      cycleInstanceStart: typeof cycleInstanceStartForDate === 'function' ? cycleInstanceStartForDate(todayKey()) : (c.runStart || c.startDate)
+    });
+  }));
+  $$('[data-cycle-next]').forEach(b => b.addEventListener('click', cycleStartNext));
+  $$('[data-cycle-edit]').forEach(b => b.addEventListener('click', openCycleEditor));
   const discard = $('[data-discard]');
   if (discard) discard.addEventListener('click', () => {
     confirmDialog({
@@ -6588,11 +6664,12 @@ function renderStats() {
   const activeLift = mainIds.indexOf(UI.liftTab) >= 0 ? UI.liftTab : (mainIds[0] || 'bench');
   const sessions = weekSessions(cur.start, cur.end).filter(s => s.status !== 'in_progress');
   const planSessions = sessions.filter(s => !s.freeform);
-  const doneSets = planSessions.reduce((n, s) => n + sessionDoneSets(s), 0);
-  const plannedSets = weekPlannedSets(cur);
+  const cyc = typeof cycleStats === 'function' ? cycleStats() : null;
+  const doneSets = cyc ? cyc.done : planSessions.reduce((n, s) => n + sessionDoneSets(s), 0);
+  const plannedSets = cyc ? cyc.planned : weekPlannedSets(cur);
   const frozenWeek = weekFrozenDays(cur) >= 7;
   const onlyFreeform = sessions.length > 0 && planSessions.length === 0;
-  const rate = Math.min(100, Math.round(doneSets / Math.max(1, plannedSets) * 100));
+  const rate = cyc ? cyc.rate : Math.min(100, Math.round(doneSets / Math.max(1, plannedSets) * 100));
   const showWeeks = dataWeeks(weeks);
   const runs = DB.runs.filter(r => r.date >= cur.start && r.date <= cur.end);
   const runMin = runs.reduce((n, r) => n + (r.minutes || 0), 0);
@@ -6619,9 +6696,11 @@ function renderStats() {
       '<button class="btn sm block mt12" data-add-body="1">记录今天（体重 / 睡眠 / 疲劳）</button>' +
     '</div>' +
     '<div class="stat-grid">' +
-      statCard('本周完成率', frozenWeek ? '暂停' : onlyFreeform ? '—' : rate + '<small>%</small>',
-        frozenWeek ? '计划冻结中，不计完成率' : onlyFreeform ? '仅随手练，不计计划完成率' : (doneSets === 0 && !DB.sessions.length ? (isCurrentWeek(cur) ? '截至今天 ' : '全周 ') + plannedSets + ' 组'
-          : doneSets + ' / ' + plannedSets + ' 组') + (isCurrentWeek(cur) && DB.sessions.length && !frozenWeek ? ' · 进行中' : ''),
+      statCard(cyc ? '本周期完成率' : '本周完成率', frozenWeek ? '暂停' : onlyFreeform ? '—' : rate + '<small>%</small>',
+        frozenWeek ? '计划冻结中，不计完成率' : onlyFreeform ? '仅随手练，不计计划完成率' : cyc
+          ? (cyc.planned ? doneSets + ' / ' + plannedSets + ' 组 · 本周期' : '本周期没有训练项目')
+          : (doneSets === 0 && !DB.sessions.length ? (isCurrentWeek(cur) ? '截至今天 ' : '全周 ') + plannedSets + ' 组'
+            : doneSets + ' / ' + plannedSets + ' 组') + (isCurrentWeek(cur) && DB.sessions.length && !frozenWeek ? ' · 进行中' : ''),
         rate >= 80 && !frozenWeek && !onlyFreeform ? 'up' : '') +
       statCard('训练次数', sessions.filter(s => s.status === 'completed').length + '<small>次</small>',
         '全周 ' + WEEK_ORDER.filter(k => PLAN[k] && PLAN[k].exercises.length).length + ' 次', '') +
@@ -6825,8 +6904,9 @@ function renderGroupBars(w) {
 /* ---------------- 每周复盘 ---------------- */
 function renderReviewCard(week) {
   const items = buildReview(week);
+  const title = (typeof cycleStats === 'function' && cycleStats()) ? '本周期复盘' : '本周复盘';
   return '<div class="card">' +
-    '<div class="card-title"><h2>' + icon('note') + ' 本周复盘</h2>' +
+    '<div class="card-title"><h2>' + icon('note') + ' ' + title + '</h2>' +
       '<span class="hint">规则引擎 · 非医学建议</span></div>' +
     items.map((it, i) =>
       '<div class="review-item"><div class="no">' + (i + 1) + '</div><div class="grow">' +
@@ -6842,10 +6922,11 @@ function renderReviewCard(week) {
 function buildReview(week) {
   const sessions = weekSessions(week.start, week.end).filter(s => s.status !== 'in_progress');
   const planSessions = sessions.filter(s => !s.freeform);
-  const doneSets = planSessions.reduce((n, s) => n + sessionDoneSets(s), 0);
-  const planned = weekPlannedSets(week);
+  const cyc = typeof cycleStats === 'function' ? cycleStats() : null;
+  const doneSets = cyc ? cyc.done : planSessions.reduce((n, s) => n + sessionDoneSets(s), 0);
+  const planned = cyc ? cyc.planned : weekPlannedSets(week);
   const frozenDays = weekFrozenDays(week);
-  const rate = Math.min(100, Math.round(doneSets / Math.max(1, planned) * 100));
+  const rate = cyc ? cyc.rate : Math.min(100, Math.round(doneSets / Math.max(1, planned) * 100));
   const doneDays = sessions.filter(s => s.status === 'completed').length;
   const partial = isCurrentWeek(week);
   const factor = planned / PLAN_TOTAL_SETS;
@@ -7332,13 +7413,16 @@ function renderSettings() {
       '<div class="card-title"><h2>训练</h2></div>' +
       '<div class="setrow"><div class="grow"><div class="t">当前训练模板</div>' +
         '<div class="s">' + planTrainingDays() + ' 个力量训练日 · 当前动作与组数以计划编辑器为准</div></div>' +
-        '<span class="tag accent">V10</span></div>' +
+        '<span class="tag accent">V' + PLAN_VERSION + '</span></div>' +
       '<div class="setrow"><div class="grow"><div class="t">每周计划量</div>' +
         '<div class="s">' + PLAN_TOTAL_SETS + ' 个工作组 · ' + planRunCount() + ' 次可选轻松跑（独立统计）</div></div>' +
         '<button class="btn sm" data-plan="1">查看</button></div>' +
       '<div class="setrow"><div class="grow"><div class="t">编辑训练计划</div>' +
         '<div class="s">修改动作、组数、次数、组间休息与训练日顺序</div></div>' +
         '<button class="btn sm" data-edit-plan="1">编辑</button></div>' +
+      '<div class="setrow"><div class="grow"><div class="t">周期计划</div>' +
+        '<div class="s">' + (DB.cycle ? DB.cycle.length + ' 天 · ' + (DB.cycle.mode === 'flexible' ? '弹性计划' : '固定日程') : '默认 7 天') + ' · 自定义周期长度与每日安排</div></div>' +
+        '<button class="btn sm" data-cycle-edit-row="1">编辑</button></div>' +
       '<div class="setrow"><div class="grow"><div class="t">主项表现</div>' +
         '<div class="s">选择最多 4 个动作，用于数据页的主项趋势</div></div>' +
         '<button class="btn sm" data-main-lifts="1">选择</button></div>' +
@@ -7427,6 +7511,8 @@ function bindSettings() {
   if (mainBtn) mainBtn.onclick = openMainLiftSheet;
   const freezeBtn = $('[data-freeze-plan]');
   if (freezeBtn) freezeBtn.onclick = openFreezeSheet;
+  const cycleBtn = $('[data-cycle-edit-row]');
+  if (cycleBtn) cycleBtn.onclick = openCycleEditor;
   const t = (act, fn) => { const b = $('[data-act="' + act + '"]'); if (b) b.onclick = fn; };
   t('toggle-unit', () => {
     DB.settings.unit = DB.settings.unit === 'kg' ? 'lb' : 'kg';
@@ -7585,6 +7671,15 @@ function exportCSV() {
   push(['# 状态']);
   push(['date', 'sleep_h', 'fatigue_1_5', 'soreness', 'note']);
   DB.checkins.forEach(c => push([c.date, c.sleep != null ? c.sleep : '', c.fatigue != null ? c.fatigue : '', c.soreness || '', c.note || '']));
+
+  if (DB.cycle) {
+    lines.push('');
+    push(['# 周期计划']);
+    push(['start_date', 'mode', 'length', 'run_start']);
+    push([DB.cycle.startDate, DB.cycle.mode, DB.cycle.length, DB.cycle.runStart || '']);
+    push(['day', 'label', 'template', 'type']);
+    DB.cycle.days.forEach((d, i) => push([i + 1, d.label, d.planKey, d.type]));
+  }
 
   download('training-log-' + todayKey() + '.csv', '\ufeff' + lines.join('\n'), 'text/csv;charset=utf-8');
   toast('已导出 CSV（训练 / 跑步 / 身体 / 状态）');
@@ -8004,6 +8099,283 @@ function jumpToSet(s, exIdx, setIdx) {
     else { renderWorkout(); startTick(); }
   }
   toast('已回到第 ' + (setIdx + 1) + ' 组');
+}
+
+</script>
+  <script>
+/* ==========================================================
+   周期计划：自定义周期长度/开始日期/每日安排 + 固定/弹性执行
+   计划内容复用当前 PLAN 的 7 个模板；周期日选择模板并自定义名称。
+   ========================================================== */
+
+function cyclePlanKeys() {
+  return Object.keys(PLAN).filter(k => PLAN[k] && PLAN[k].exercises && PLAN[k].exercises.length);
+}
+function cycleDefaultDays() {
+  return WEEK_ORDER.map((k, i) => ({
+    id: 'cd' + i,
+    label: WEEK_LABEL[k] || ('第 ' + (i + 1) + ' 天'),
+    planKey: PLAN[k] && PLAN[k].exercises.length ? k : 'rest',
+    type: PLAN[k] && PLAN[k].exercises.length ? 'training' : 'rest'
+  }));
+}
+function ensureCycle() {
+  if (DB.cycle && Array.isArray(DB.cycle.days) && DB.cycle.days.length) return DB.cycle;
+  DB.cycle = {
+    id: uid('cyc'),
+    length: 7,
+    startDate: dateKey(startOfWeek(new Date())),
+    runStart: todayKey(),
+    mode: 'fixed',
+    days: cycleDefaultDays()
+  };
+  saveDB(true, { preserveTimestamp: true });
+  return DB.cycle;
+}
+function cycleIsFlexible() {
+  return !!(DB.cycle && DB.cycle.mode === 'flexible');
+}
+function cycleDayHasTraining(day) {
+  return !!(day && day.type === 'training' && PLAN[day.planKey] && PLAN[day.planKey].exercises.length);
+}
+function cycleDayForDate(k) {
+  const c = DB.cycle;
+  if (!c || !c.days || !c.days.length) return null;
+  const start = parseKey(c.startDate || todayKey());
+  const target = parseKey(k);
+  const diff = Math.floor((target - start) / 86400000);
+  if (diff < 0) return null;
+  return c.days[((diff % c.days.length) + c.days.length) % c.days.length];
+}
+function cycleInstanceStartForDate(k) {
+  const c = DB.cycle;
+  if (!c) return todayKey();
+  if (c.mode === 'flexible') return c.runStart || c.startDate || k;
+  const epoch = parseKey(c.startDate || k);
+  const diff = Math.floor((parseKey(k) - epoch) / 86400000);
+  if (diff < 0) return c.startDate;
+  return dateKey(addDays(epoch, Math.floor(diff / c.days.length) * c.days.length));
+}
+function cycleToday() {
+  return cycleDayForDate(todayKey());
+}
+function cycleTrainingDays() {
+  const c = DB.cycle;
+  return c && Array.isArray(c.days) ? c.days.filter(cycleDayHasTraining) : [];
+}
+function cycleProgress() {
+  const c = DB.cycle;
+  if (!c) return { completed: 0, total: 0, remaining: [], doneIds: [] };
+  const start = c.runStart || c.startDate || todayKey();
+  const doneIds = [];
+  DB.sessions.forEach(s => {
+    if (s.status !== 'completed' || !s.cycleDayId) return;
+    // 新周期必须看 cycleInstanceStart；旧会话没有该字段时才回退到日期判断。
+    if (s.cycleInstanceStart) {
+      if (s.cycleInstanceStart !== start) return;
+    } else if (s.date < start) {
+      return;
+    }
+    if (doneIds.indexOf(s.cycleDayId) < 0) doneIds.push(s.cycleDayId);
+  });
+  const training = cycleTrainingDays();
+  const remaining = training.filter(d => doneIds.indexOf(d.id) < 0);
+  return {
+    completed: training.length - remaining.length,
+    total: training.length,
+    remaining,
+    doneIds,
+    complete: training.length > 0 && remaining.length === 0
+  };
+}
+
+/* 当前周期的计划量与完成量，用于数据页/复盘，避免继续用旧的 7 天周口径 */
+function cycleStats() {
+  const c = DB.cycle;
+  if (!c || !c.days || !c.days.length) return null;
+  const today = todayKey();
+  const len = c.days.length;
+  let start = c.runStart || c.startDate || today;
+  if (c.mode !== 'flexible') {
+    const epoch = parseKey(c.startDate || today);
+    const diff = Math.floor((parseKey(today) - epoch) / 86400000);
+    if (diff >= 0) start = dateKey(addDays(epoch, Math.floor(diff / len) * len));
+    else start = c.startDate;
+  }
+  const planned = cycleTrainingDays().reduce((n, d) => {
+    const p = PLAN[d.planKey];
+    return n + (p ? p.exercises.reduce((a, e) => a + Number(e.sets || 0), 0) : 0);
+  }, 0);
+  const done = DB.sessions.reduce((n, s) => {
+    if (s.status !== 'completed' || s.freeform || s.date < start) return n;
+    if (s.cycleInstanceStart && s.cycleInstanceStart !== start) return n;
+    if (s.cycleDayId && c.days.some(d => d.id === s.cycleDayId)) return n + sessionDoneSets(s);
+    // 旧记录没有 cycleDayId 时按日期兜底
+    if (!s.cycleDayId) return n + sessionDoneSets(s);
+    return n;
+  }, 0);
+  return { start, planned, done, rate: planned ? Math.min(100, Math.round(done / planned * 100)) : 0 };
+}
+function cycleStartNext() {
+  if (!DB.cycle) return;
+  DB.cycle.runStart = todayKey();
+  saveDB(true);
+  renderCurrentTab();
+  toast('新周期开始，慢慢来');
+}
+function cycleSetMode(mode) {
+  if (!DB.cycle) return;
+  DB.cycle.mode = mode === 'flexible' ? 'flexible' : 'fixed';
+  saveDB(true);
+  renderCurrentTab();
+  toast(mode === 'flexible' ? '已切换为弹性计划' : '已切换为固定日程');
+}
+
+/* ---------------- 周期首页（弹性模式） ---------------- */
+function renderFlexibleHero() {
+  const c = DB.cycle;
+  const p = cycleProgress();
+  const modeText = c.mode === 'flexible' ? '弹性计划' : '固定日程';
+  if (!p.total) {
+    return '<div class="hero cycle-hero"><div class="hero-top">📅 ' + modeText + '</div><h2>周期里还没有训练项目</h2>' +
+      '<div class="focus">去设置里编辑周期计划，或把某一天设为训练日。</div>' +
+      '<button class="btn primary block" style="margin-top:14px" data-cycle-edit>编辑周期</button></div>';
+  }
+  if (p.complete) {
+    return '<div class="hero cycle-hero"><div class="hero-top">✓ ' + modeText + ' · 本周期完成</div>' +
+      '<h2>这一轮练完了<small>可以开始下一轮</small></h2>' +
+      '<div class="focus">本周期所有训练项目都已完成。下一轮不需要补练，从今天重新开始。</div>' +
+      '<button class="btn primary block" style="margin-top:14px" data-cycle-next>开始下一周期</button></div>';
+  }
+  const buttons = p.remaining.map(d => {
+    const plan = PLAN[d.planKey];
+    return '<button class="btn block" style="margin-top:8px;text-align:left" data-cycle-start="' + d.id + '">' +
+      '<span style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>' + esc(d.label) + '</b>' +
+      '<span class="tag">' + esc(plan.name) + '</span></span></button>';
+  }).join('');
+  const pct = Math.round(p.completed / Math.max(1, p.total) * 100);
+  return '<div class="hero cycle-hero"><div class="hero-top">📅 ' + modeText + ' · 本周期</div>' +
+    '<h2>今天想练什么？<small>不按日期，按项目</small></h2>' +
+    '<div class="focus">已完成 ' + p.completed + ' / ' + p.total + ' 个项目；剩下什么就选什么，今天休息也可以。</div>' +
+    '<div style="margin-bottom:10px"><div class="bar"><i style="width:' + pct + '%"></i></div></div>' +
+    buttons +
+    '<div class="f11" style="color:rgba(255,255,255,.5);margin-top:10px">完成一项后会自动计入本周期；不按日期判“漏练”。</div>' +
+  '</div>';
+}
+
+/* ---------------- 周期编辑器 ---------------- */
+function openCycleEditor() {
+  ensureCycle();
+  const draft = JSON.parse(JSON.stringify(DB.cycle));
+  const planOptions = (selected) => {
+    const opts = cyclePlanKeys().map(k => '<option value="' + k + '"' + (selected === k ? ' selected' : '') + '>' + esc(PLAN[k].name) + '</option>').join('');
+    return opts + '<option value="rest"' + (selected === 'rest' ? ' selected' : '') + '>休息</option>';
+  };
+  const rowsHtml = () => draft.days.map((d, i) =>
+    '<div class="cycle-row" data-cycle-row="' + i + '">' +
+      '<div class="cycle-row-top"><span class="cycle-no">' + (i + 1) + '</span>' +
+        '<input class="input" data-cycle-label="' + i + '" maxlength="20" value="' + esc(d.label || '') + '" aria-label="周期日名称">' +
+        '<div class="cycle-order">' +
+          '<button data-cycle-up="' + i + '" ' + (i === 0 ? 'disabled' : '') + ' aria-label="上移">↑</button>' +
+          '<button data-cycle-down="' + i + '" ' + (i === draft.days.length - 1 ? 'disabled' : '') + ' aria-label="下移">↓</button>' +
+          '<button data-cycle-del="' + i + '" aria-label="删除">×</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cycle-row-bottom"><label>训练内容<select class="input" data-cycle-plan="' + i + '">' + planOptions(d.planKey) + '</select></label></div>' +
+    '</div>').join('');
+
+  const h = openSheet({
+    title: '周期计划',
+    desc: '自定义周期长度、开始日期和每天的安排；计划内容仍然在动作计划编辑器里修改',
+    body:
+      '<div class="cycle-editor">' +
+        '<div class="cycle-row"><label>执行方式</label><div class="chiprow" id="cycle-mode">' +
+          '<button data-cycle-mode="fixed" class="' + (draft.mode === 'fixed' ? 'on' : '') + '">固定日程</button>' +
+          '<button data-cycle-mode="flexible" class="' + (draft.mode === 'flexible' ? 'on' : '') + '">弹性计划</button>' +
+        '</div></div>' +
+        '<div class="cycle-row"><label>周期开始日期</label><input class="input" id="cycle-start" type="date" value="' + esc(draft.startDate) + '"></div>' +
+        '<div class="f11 mut" style="line-height:1.6;margin:6px 0 10px">周期长度由下面的天数决定：增加/删除一天即可改变长度，不要求从周一开始。</div>' +
+        '<div id="cycle-rows">' + rowsHtml() + '</div>' +
+        '<button class="btn ghost block mt10" data-cycle-add>+ 增加一天</button>' +
+        '<div class="note mt12">' + icon('info') + '<span>周期日可以重复使用同一个训练模板；想改动作内容，请到「训练 → 编辑训练计划」。</span></div>' +
+      '</div>',
+    actions: [
+      { label: '取消', cls: 'ghost' },
+      {
+        label: '保存周期', cls: 'primary', onClick: () => {
+          const startEl = h.el.querySelector('#cycle-start');
+          const start = startEl ? startEl.value : draft.startDate;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) { toast('请选择有效的周期开始日期'); return false; }
+          const rows = h.el.querySelectorAll('[data-cycle-row]');
+          if (!rows.length) { toast('至少保留一天'); return false; }
+          const days = [];
+          rows.forEach((row, i) => {
+            const labelEl = row.querySelector('[data-cycle-label]');
+            const planEl = row.querySelector('[data-cycle-plan]');
+            const planKey = planEl ? planEl.value : 'rest';
+            const label = (labelEl ? labelEl.value.trim() : '') || ('第 ' + (i + 1) + ' 天');
+            days.push({
+              id: draft.days[i] ? draft.days[i].id : 'cd' + i,
+              label: label.slice(0, 20),
+              planKey,
+              type: planKey === 'rest' || !PLAN[planKey] ? 'rest' : (PLAN[planKey].exercises.length ? 'training' : 'rest')
+            });
+          });
+          DB.cycle = {
+            id: DB.cycle.id,
+            length: days.length,
+            startDate: start,
+            runStart: DB.cycle.runStart || todayKey(),
+            mode: draft.mode === 'flexible' ? 'flexible' : 'fixed',
+            days
+          };
+          // 如果当前 runStart 在开始日期之前，修正到开始日期
+          if (DB.cycle.runStart < start) DB.cycle.runStart = start;
+          saveDB(true);
+          renderCurrentTab();
+          toast('周期计划已保存');
+        }
+      }
+    ],
+    onMount: (mask, close) => {
+      const repaint = () => {
+        const box = mask.querySelector('#cycle-rows');
+        box.innerHTML = rowsHtml();
+        bindRows();
+      };
+      const bindRows = () => {
+        mask.querySelectorAll('[data-cycle-label]').forEach(el => {
+          el.oninput = () => { draft.days[Number(el.dataset.cycleLabel)].label = el.value; };
+        });
+        mask.querySelectorAll('[data-cycle-plan]').forEach(el => {
+          el.onchange = () => { draft.days[Number(el.dataset.cyclePlan)].planKey = el.value; };
+        });
+        mask.querySelectorAll('[data-cycle-up]').forEach(b => b.onclick = () => {
+          const i = Number(b.dataset.cycleUp); if (i <= 0) return;
+          const t = draft.days[i - 1]; draft.days[i - 1] = draft.days[i]; draft.days[i] = t; repaint();
+        });
+        mask.querySelectorAll('[data-cycle-down]').forEach(b => b.onclick = () => {
+          const i = Number(b.dataset.cycleDown); if (i >= draft.days.length - 1) return;
+          const t = draft.days[i + 1]; draft.days[i + 1] = draft.days[i]; draft.days[i] = t; repaint();
+        });
+        mask.querySelectorAll('[data-cycle-del]').forEach(b => b.onclick = () => {
+          if (draft.days.length <= 1) { toast('至少保留一天'); return; }
+          draft.days.splice(Number(b.dataset.cycleDel), 1); repaint();
+        });
+      };
+      mask.querySelectorAll('[data-cycle-mode]').forEach(b => b.onclick = () => {
+        draft.mode = b.dataset.cycleMode;
+        mask.querySelectorAll('[data-cycle-mode]').forEach(x => x.classList.toggle('on', x === b));
+      });
+      const add = mask.querySelector('[data-cycle-add]');
+      if (add) add.onclick = () => {
+        const last = draft.days[draft.days.length - 1] || { planKey: 'rest' };
+        draft.days.push({ id: uid('cd'), label: '第 ' + (draft.days.length + 1) + ' 天', planKey: last.planKey || 'rest', type: last.type || 'rest' });
+        repaint();
+      };
+      bindRows();
+    }
+  });
 }
 
 </script>
@@ -8669,6 +9041,7 @@ function init() {
   registerCustomExercises();
   ensurePlanData();
   buildPlan();
+  if (typeof ensureCycle === 'function') ensureCycle();
   // 尽量申请持久化存储，降低浏览器自动清理体积数据的风险
   if (navigator.storage && typeof navigator.storage.persist === 'function') {
     navigator.storage.persist().catch(() => {});
